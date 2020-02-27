@@ -1,0 +1,10 @@
+
+# wifi and Azure IoT authentication info
+secrets.py
+
+/lib
+__pycache__/
+.fseventsd/
+.Trashes
+.metadata*
+boot_out*
