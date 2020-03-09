@@ -17,7 +17,7 @@ It is structured as follows:
 - This application obtains user-specific info-- things like wifi connection ssid & password, device connection keys, device & scope id, etc.-- from the `secrets.py` file. You will have to edit this file with your own secrets or you can change how you obtain this info. We recommend never hardcoding this information. 
 
 *TO DO*: 
-1) Refactor the organization to make a lib folder containing:
+1) See if we can reorganize the file structure. Currently Circuitpython has a `lib` folder for all additional libraries. You will copy necessary Adafruit libraries into it, and can do the same with the following files in this repo as well:
     -  `azureiotmqtt.py`
     - `connection.py`
     - `defaultdict.py`
@@ -28,6 +28,7 @@ It is structured as follows:
     - `smileyface.bmp`
 3) Provide more info on the connection details for the PyPortal and PyBadge (both use and ESP32 as a coprocessor for wifi functionality)
 4) More code review and code cleaning
+5) Fill in additional information about the development environments
 
 
 ## Supported boards
@@ -67,10 +68,12 @@ You will need an Adafruit board with WiFi connectivity via an ESP32 chip, either
     | adafruit_esp32spi     | Folder |
     | adafruit_bus_device   | Folder |
 
-* Copy the code from this repo to the device
+* Copy the code from this repo to the device. You can refactor files that are not the `code.py` into the `lib` folder if you prefer.
 
 * Edit 'secrets.py` to include your WiFi SSID and password, as well as the ID Scope, Device ID and Key for your device
 
 * The device will reboot, connect to WiFi and connect to Azure IoT Central
+
+* Using the view associated with the Device Template in IoT Central, you can test sending commands and seeing telemetry appear on the dashboard. 
 
 
