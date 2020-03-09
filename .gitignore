@@ -1,6 +1,7 @@
 
 # wifi and Azure IoT authentication info
-secrets.py
+# secrets.py
+tempsecrets.py
 
 /lib
 __pycache__/

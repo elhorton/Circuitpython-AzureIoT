@@ -1,0 +1,66 @@
+{
+  "@id": "urn:circuitpythontest:CircuitpythonSampleTemplate_5pd:1",
+  "@type": "CapabilityModel",
+  "implements": [
+    {
+      "@id": "urn:circuitpythontest:CircuitpythonSampleTemplate_5pd:4gepud7_:1",
+      "@type": "InterfaceInstance",
+      "displayName": {
+        "en": "Interface"
+      },
+      "name": "CircuitpythonSampleTemplate_62u",
+      "schema": {
+        "@id": "urn:circuitpythontest:CircuitpythonSampleTemplate_62u:1",
+        "@type": "Interface",
+        "displayName": {
+          "en": "Interface"
+        },
+        "contents": [
+          {
+            "@id": "urn:circuitpythontest:CircuitpythonSampleTemplate_62u:TestTelemetry:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Test Telemetry"
+            },
+            "name": "TestTelemetry",
+            "schema": "double"
+          },
+          {
+            "@id": "urn:circuitpythontest:CircuitpythonSampleTemplate_62u:Temperature:1",
+            "@type": "Telemetry",
+            "displayName": {
+              "en": "Temperature"
+            },
+            "name": "Temperature",
+            "schema": "double",
+            "unit": "Units/Temperature/fahrenheit"
+          },
+          {
+            "@id": "urn:circuitpythontest:CircuitpythonSampleTemplate_62u:SayHi:1",
+            "@type": "Command",
+            "commandType": "synchronous",
+            "displayName": {
+              "en": "Say Hi"
+            },
+            "name": "SayHi"
+          },
+          {
+            "@id": "urn:circuitpythontest:CircuitpythonSampleTemplate_62u:SendImage:1",
+            "@type": "Command",
+            "commandType": "synchronous",
+            "displayName": {
+              "en": "Send Image"
+            },
+            "name": "SendImage"
+          }
+        ]
+      }
+    }
+  ],
+  "displayName": {
+    "en": "CircuitpythonSampleTemplate"
+  },
+  "@context": [
+    "http://azureiot.com/v1/contexts/IoTModel.json"
+  ]
+}
