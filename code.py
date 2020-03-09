@@ -3,7 +3,7 @@ import board, busio
 # import adafruit_hashlib as hashlib
 # import adafruit_logging as logging
 # from adafruit_minimqtt import MQTT
-import adafruit_esp32spi.adafruit_esp32spi_socket as socket # how to make this platform agnostic? 
+import adafruit_esp32spi.adafruit_esp32spi_socket as socket 
 from connection import Connection
 from secrets import secrets
 from azureiotmqtt import Device, IOTCallbackInfo, IOTConnectType, IOTLogLevel, IOTQosLevel
@@ -12,18 +12,17 @@ import json
 import random
 import neopixel
 
-# ------------------------------------ START MAIN CODE ------------------------------------- #
-
+# ------------------------------------ Listener functions ------------------------------------- #
 
 def onconnect(info):
-    print("- [onconnect] => status:" + str(info.getStatusCode()))
+    print("Connection status: " + str(info.getStatusCode()))
 
 def onmessagesent(info):
-    print("\t- [onmessagesent] => " + str(info.getPayload()))
+    print("Message sent: " + str(info.getPayload()))
 
+# defining commands from an IoT Central application
 def oncommand(info):
-    print("Got a command!")
-    print("- [oncommand] => " + info.getTag() + " => " + info.getPayload())
+    print("Received command: " + info.getTag() + " => " + info.getPayload())
     commandName = info.getTag()
     if commandName == "SayHi":
       showText("Hi\nThere!")
@@ -32,8 +31,9 @@ def oncommand(info):
       
 
 def onsettingsupdated(info):
-    print("- [onsettingsupdated] => " + info.getTag() + " => " + info.getPayload())
+    print("Updating settings: " + info.getTag() + " => " + info.getPayload())
 
+# function for showing text on the PyPortal screen
 def showText(textToShow):
   import terminalio
   from adafruit_display_text import label
@@ -64,11 +64,9 @@ def showText(textToShow):
   text_area.color = 0xFF0000
   # Add to text
   text_area.text = text_area.text + '!!!'
-
-  # Keep the program running, otherwise the display is cleared
-  #time.sleep(1000)
   return
 
+# function to show an image on the PyPortal screen
 def showImage(imageFile):
   import displayio
 
@@ -90,48 +88,24 @@ def showImage(imageFile):
   group = displayio.Group()
   group.append(tile_grid)
   board.DISPLAY.show(group)
-
-  # # Move the whole group (which includes the TileGrid that has our image)
-  # # The TileGrids inside the group have a relative position to the
-  # # position of the group.
-  # for i in range(0, 25, 5):
-  #     group.x = i
-  #     group.y = i
-  #     time.sleep(.1)
-  # # Then reset it back to 0,0
-  # group.x, group.y = 0, 0
-
-  # # You can scale groups by integer values, default is 1
-  # group.scale = 2
-
-  # # Each TileGrid inside a group has its own position relative to
-  # # the position of the parent group.
-  # # Move the TileGrid only, leaving group in same spot
-  # for i in range(0, 25, 5):
-  #     tile_grid.x = i
-  #     tile_grid.y = i
-  #     time.sleep(.1)
-
-  # # If you had more TileGrids, you could add or remove them with:
-  # # group.append()
-  # # group.pop()
-  # # group.insert()
-
-  # If you close the file, it will not be able to display any more
   time.sleep(1)
   image_file.close()
 
-  
+
+# -------------------------- Start Main Code -------------------------------- # 
+
 
 spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
+wifi_manager = connection.connect(spi, True) 
 connection = Connection()
-wifi_manager = connection.connect(spi, True)
 
-# Do the thing
+
+# Get info for your specific use case
 id_scope = secrets['id_scope']
 device_id = secrets['device_id']
-primary_key = secrets['key']
+primary_key = secrets['key'] 
 
+# create your device, pass in connection info
 my_device = Device(id_scope, primary_key, device_id, IOTConnectType.IOTC_CONNECT_SYMM_KEY, socket, connection, wifi_manager)
 
 my_device.connect()
@@ -144,6 +118,9 @@ my_device.on("SettingsUpdated", onsettingsupdated)
 while my_device.isConnected():
     my_device.doNext() # do the async work needed to be done for MQTT
 
+    # Do whatever
+
+    # sample of sending simulated telemetry
     temp = 32.0 + random.uniform(-20.0, 20.0)
     state = {
         "TestTelemetry": random.randint(0, 1024),

@@ -95,7 +95,6 @@ def MAKE_CALLBACK(client, eventName, payload, tag, status, msgid = None):
 def _quote(a, b):
   return parse.quote(a, safe=b)
 
-# THIS IS WHERE WE CREATE THE MQTT CLIENT!
 
 def _createMQTTClient(__self, username, passwd):
     print('User: ', username)
