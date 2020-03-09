@@ -14,7 +14,7 @@ It is structured as follows:
     - `Temperature` is a randomly generated temperature value
     - `SayHi` displays the text "Hi There!" on the screen if using the PyPortal device
     - Similarly, `SendImage` prompts the Pyportal device to show an image on the screen. In the case of this application, it's the `smileyface.bmp` file in this repo. 
-- This application obtains user-specific info-- things like wifi connection ssid & password, device connection keys, device & scope id, etc.-- from a file called `secrets.py`. This is not shared on the repo for obvious reasons, and you can change how you obtain this info. We recommend never hardcoding this information. 
+- This application obtains user-specific info-- things like wifi connection ssid & password, device connection keys, device & scope id, etc.-- from the `secrets.py` file. You will have to edit this file with your own secrets or you can change how you obtain this info. We recommend never hardcoding this information. 
 
 *TO DO*: 
 1) Refactor the organization to make a lib folder containing:
@@ -55,11 +55,10 @@ You will need an Adafruit board with WiFi connectivity via an ESP32 chip, either
 
 * Download the latest version of the Adafruit CircuitPython libraries from the [releases page](https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases)
 
-* Copy the following to the `lib` folder on your CircuitPython device
+* Copy the following Adafruit Circuitpython libraries to the `lib` folder on your CircuitPython device
 
     | Name                  | Type   |
     | --------------------- | ------ |
-    | neopixel.mpy          | File   |
     | adafruit_minimqtt.mpy | File   |
     | adafruit_logging.mpy  | File   |
     | adafruit_binascii.mpy | File   |
