@@ -3,7 +3,7 @@
 secrets.py
 tempsecrets.py
 
-/lib
+/lib/ada*
 __pycache__/
 .fseventsd/
 .Trashes
