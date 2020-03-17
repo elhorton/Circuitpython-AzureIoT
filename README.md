@@ -70,7 +70,7 @@ You will need an Adafruit board with WiFi connectivity via an ESP32 chip, either
 
 * Copy the code from this repo to the device. You can refactor files that are not the `code.py` into the `lib` folder if you prefer.
 
-* Edit 'secrets.py` to include your WiFi SSID and password, as well as the ID Scope, Device ID and Key for your device
+* Edit `secrets.py` to include your WiFi SSID and password, as well as the ID Scope, Device ID and Key for your device
 
 * The device will reboot, connect to WiFi and connect to Azure IoT Central
 
