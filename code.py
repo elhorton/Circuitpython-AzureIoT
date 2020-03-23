@@ -1,8 +1,4 @@
 import board, busio
-# import adafruit_requests as requests
-# import adafruit_hashlib as hashlib
-# import adafruit_logging as logging
-# from adafruit_minimqtt import MQTT
 import adafruit_esp32spi.adafruit_esp32spi_socket as socket 
 from connection import Connection
 from secrets import secrets
@@ -94,13 +90,13 @@ def showImage(imageFile):
 
 # -------------------------- Start Main Code -------------------------------- # 
 
+# Set up wifi connection
 spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
 connection = Connection()
 wifi_manager = connection.connect(spi, True) 
 
 
-
-# Get info for your specific use case
+# Get info for your specific device configuration
 id_scope = secrets['id_scope']
 device_id = secrets['device_id']
 primary_key = secrets['key'] 
@@ -112,8 +108,8 @@ my_device.connect()
 
 my_device.on("ConnectionStatus", onconnect)
 my_device.on("MessageSent", onmessagesent)
-my_device.on("Command", oncommand)
-my_device.on("SettingsUpdated", onsettingsupdated)
+my_device.on("Command", oncommand) # write command handlers in the oncommand function
+my_device.on("SettingsUpdated", onsettingsupdated) # to fill in
 
 while my_device.isConnected():
     my_device.doNext() # do the async work needed to be done for MQTT
