@@ -1,9 +1,10 @@
 
 # wifi and Azure IoT authentication info
 secrets.py
-tempsecrets.py
+
 
 /lib/ada*
+/lib/.*
 __pycache__/
 .fseventsd/
 .Trashes

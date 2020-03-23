@@ -5,6 +5,7 @@ import adafruit_requests as requests
 import adafruit_hashlib as hashlib
 import adafruit_logging as logging
 from adafruit_minimqtt import MQTT
+from constants import constants
 import time
 import base64
 import hmac
@@ -97,8 +98,6 @@ def _quote(a, b):
 
 
 def _createMQTTClient(__self, username, passwd):
-    print('User: ', username)
-    print('Password: ', passwd)
     __self._mqtts = MQTT(__self.socket,
                          broker=__self._hostname,
                          username=username,
@@ -126,13 +125,17 @@ def _createMQTTClient(__self, username, passwd):
 # function to make an http request
 def _request(device, target_url, method, body, headers):
   success = False
-  while not success:
+  retryCount = 0
+  while ((not success) & (retryCount < 10)):
     try:
       response = requests.request(method, target_url, data=body, headers=headers)
       return response.text
     except RuntimeError as e:
-      print("Could not make request, retrying: ",e)
-      continue # this has a tendency to enter a never-ending loop, should add more resiliency here
+      retryCount+=1
+      print("Failing to make a request via Adafruit requests library to DPS, retrying. Will try 10 times. Retry Count: %s ", str(retryCount), e)
+      time.sleep(1)
+      continue
+  return "Request call failed" # will be handled gracefully in calling functions error handling
 
 # -------------------- Class for the device itself ---------------------------------------- #
 class Device:
@@ -150,7 +153,7 @@ class Device:
     self._dpsEndPoint = "global.azure-devices-provisioning.net"
     self._modelData = None
     self._sslVerificiationIsEnabled = True
-    self._dpsAPIVersion = "2018-11-01"
+    self._dpsAPIVersion = constants['dpsAPIVersion']
     self._addMessageTimeStamp = False
     self._exitOnError = False
     self._tokenExpires = 21600
@@ -431,7 +434,7 @@ class Device:
     self._hostname = hostname
     passwd = None
 
-    username = '{}/{}/api-version=2016-11-14'.format(self._hostname, self._deviceId)
+    username = '{}/{}/api-version={}'.format(self._hostname, self._deviceId, constants['iotcAPIVersion'])
     if self._credType == IOTConnectType.IOTC_CONNECT_SYMM_KEY:
       passwd = self._gen_sas_token(self._hostname, self._deviceId, self._keyORCert)
 

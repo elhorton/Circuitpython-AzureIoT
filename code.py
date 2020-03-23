@@ -94,10 +94,10 @@ def showImage(imageFile):
 
 # -------------------------- Start Main Code -------------------------------- # 
 
-
 spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
-wifi_manager = connection.connect(spi, True) 
 connection = Connection()
+wifi_manager = connection.connect(spi, True) 
+
 
 
 # Get info for your specific use case
@@ -105,7 +105,7 @@ id_scope = secrets['id_scope']
 device_id = secrets['device_id']
 primary_key = secrets['key'] 
 
-# create your device, pass in connection info
+# create your ESP32 wifi enabled device, pass in connection & wifi setup 
 my_device = Device(id_scope, primary_key, device_id, IOTConnectType.IOTC_CONNECT_SYMM_KEY, socket, connection, wifi_manager)
 
 my_device.connect()
