@@ -7,19 +7,19 @@ A library for connecting to AzureIoT using Circuitpython. Still under constructi
 This is an adaptation of an [existing Micropython library for IoT Central](https://github.com/obastemur/iot_client); however, instead of using Micropython, this library uses Adafruit's Circuitpython. 
 
 It is structured as follows: 
-- `code.py` runs automatically whenever the Circuitpython board restarts. This is where the main application code should live. This currently has a very simple sample application sending telemetry and receiving commands from an IoT Central application. 
+- `code.py` runs automatically whenever the Circuitpython board restarts. This is where the main application code should live. This currently has a very simple sample application sending telemetry and receiving commands from an IoT Central application geared at the *PyPortal* device. The sample can be adapted for use with the *PyBadge* device as well. 
 - `azureiotmqtt.py` contains the library for connecting to Azure IoT. 
 - `CircuitpythonSampleTemplate.json` is the sample device template with the capability models needed for this application. This can be used to showcase the basics of IoT Central with the PyPortal device. It exposes two telemetry points and two commands:
     - `TestTelemetry` is just a random number
     - `Temperature` is a randomly generated temperature value
-    - `SayHi` displays the text "Hi There!" on the screen if using the PyPortal device
-    - Similarly, `SendImage` prompts the Pyportal device to show an image on the screen. In the case of this application, it's the `smileyface.bmp` file in this repo. 
-        - **Note**: If using the PyBadge device as opposed to the PyPortal, the `SendImage` command obviously won't work since there is not a screen to display on. 
+    - **Note**: If using the PyBadge device as opposed to the PyPortal, these commands obviously will not work since there is not a screen to display on. You can adapt by prompting the device to do something else when receiving a command, like flashing its LED. See the `oncommand` function within `code.py`.  
+        - `SayHi` displays the text "Hi There!" on the screen if using the PyPortal device
+        - Similarly, `SendImage` prompts the Pyportal device to show an image on the screen. In the case of this application, it's the `smileyface.bmp` file in this repo. 
 - This application obtains user-specific info-- things like wifi connection ssid & password, device connection keys, device & scope id, etc.-- from the `secrets.py` file. You will have to edit this file with your own secrets or you can change how you obtain this info. We recommend never hardcoding this information.
 - This application also stores global constants for API versions in the `constants.py` file. This file can easily be expanded upon for your own needs. 
 
 *TO DO*: 
-1) Provide more info on the connection details for the PyPortal and PyBadge (both use and ESP32 as a coprocessor for wifi functionality)
+1) Provide more info on how the connection works for the PyPortal and PyBadge (both use and ESP32 as a coprocessor for wifi functionality). This could be refactored to be separated from the device class as a future code improvement.
 2) Fill in additional helpful information about the development environments, tips and tricks, additional possible errors. 
 
 

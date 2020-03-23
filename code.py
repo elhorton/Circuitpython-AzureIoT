@@ -24,7 +24,20 @@ def oncommand(info):
       showText("Hi\nThere!")
     if commandName == "SendImage":
       showImage("smileyface.bmp")
-      
+    
+    # # if using PyBadge, try the following:
+    # global is_on
+    # print("- [oncommand] => " + info.getTag() + " => " + str(info.getPayload()))
+
+    # if is_on:
+    #     neopixels[0] = (0, 0, 0)
+    #     neopixels.show()
+    #     is_on = False
+    # else:
+    #     neopixels[0] = (255, 255, 255)
+    #     neopixels.show()
+    #     is_on = True
+    
 
 def onsettingsupdated(info):
     print("Updating settings: " + info.getTag() + " => " + info.getPayload())
@@ -109,7 +122,7 @@ my_device.connect()
 my_device.on("ConnectionStatus", onconnect)
 my_device.on("MessageSent", onmessagesent)
 my_device.on("Command", oncommand) # write command handlers in the oncommand function
-my_device.on("SettingsUpdated", onsettingsupdated) # to fill in
+my_device.on("SettingsUpdated", onsettingsupdated)
 
 while my_device.isConnected():
     my_device.doNext() # do the async work needed to be done for MQTT
