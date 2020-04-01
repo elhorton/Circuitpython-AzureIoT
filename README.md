@@ -72,6 +72,9 @@ Overall, there are two components to think about when working with Circuitpyton:
     | adafruit_binascii.mpy | File   |
     | adafruit_requests.mpy | File   |
     | adafruit_ntp.mpy      | File   |
+    | neopixel_spi.mpy      | File   |
+    | neopixel.mpy          | File   |
+    | simpleio.mpy          | File   |
     | adafruit_hashlib      | Folder |
     | adafruit_esp32spi     | Folder |
     | adafruit_bus_device   | Folder |
