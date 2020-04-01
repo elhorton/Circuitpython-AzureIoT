@@ -98,16 +98,25 @@ def _quote(a, b):
 
 
 def _createMQTTClient(__self, username, passwd):
-    __self._mqtts = MQTT(__self.socket,
-                         broker=__self._hostname,
-                         username=username,
-                         password=passwd,
-                         network_manager=__self.network_manager,
-                         port=8883,
-                         keep_alive=120,
-                         is_ssl=True,
-                         client_id=__self._deviceId,
-                         log=True)
+    try:
+        __self._mqtts = MQTT(broker=__self._hostname,
+                            username=username,
+                            password=passwd,
+                            port=8883,
+                            keep_alive=120,
+                            is_ssl=True,
+                            client_id=__self._deviceId,
+                            log=True)
+    except ValueError:
+        # Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
+        __self._mqtts = MQTT(broker='https://' + __self._hostname,
+                            username=username,
+                            password=passwd,
+                            port=8883,
+                            keep_alive=120,
+                            is_ssl=True,
+                            client_id=__self._deviceId,
+                            log=True)
 
     __self._mqtts.logger.setLevel(logging.DEBUG)
 

@@ -3,6 +3,7 @@ import json, time
 from secrets import secrets
 from digitalio import DigitalInOut
 import adafruit_requests as requests
+import adafruit_minimqtt as MQTT
 import adafruit_esp32spi.adafruit_esp32spi_socket as socket
 from adafruit_esp32spi import adafruit_esp32spi, adafruit_esp32spi_wifimanager
 from adafruit_ntp import NTP
@@ -12,6 +13,7 @@ class Connection:
         esp = adafruit_esp32spi.ESP_SPIcontrol(spi, cs, ready, reset)
 
         requests.set_socket(socket, esp)
+        MQTT.set_socket(socket, esp)
 
         if log:
             print("MAC addr:", [hex(i) for i in esp.MAC_address])
