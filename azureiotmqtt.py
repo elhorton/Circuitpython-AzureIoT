@@ -7,8 +7,8 @@ import adafruit_logging as logging
 from adafruit_minimqtt import MQTT
 from constants import constants
 import time
-import base64
-import hmac
+import circuitpython_base64 as base64
+import circuitpython_hmac as hmac
 import parse
 import json
 
@@ -375,7 +375,7 @@ class Device:
 
   def sendProperty(self, data):
     LOG_IOTC("- iotc :: sendProperty :: " + data, IOTLogLevel.IOTC_LOGGING_ALL)
-    topic = '$iothub/twin/PATCH/properties/reported/?$rid={}'.format(int(self.connection.get_time()))
+    topic = '$iothub/twin/PATCH/properties/reported/?$rid={}'.format(int(time.time()))
     return self._sendCommon(topic, data)
   
   def sendTelemetry(self, data, systemProperties = None):
@@ -415,7 +415,7 @@ class Device:
     return 0
 
   def _gen_sas_token(self, hub_host, device_name, key):
-    token_expiry = int(self.connection.get_time() + self._tokenExpires)
+    token_expiry = int(time.time() + self._tokenExpires)
     uri = hub_host + "%2Fdevices%2F" + device_name
     signed_hmac_sha256 = self._computeDrivedSymmetricKey(key, uri + "\n" + str(token_expiry))
     signature = _quote(signed_hmac_sha256, '~()*!.\'')
@@ -475,7 +475,7 @@ class Device:
       self._hostName = hostName
       return self._mqttConnect(None, self._hostName)
 
-    expires = int(self.connection.get_time() + self._tokenExpires)
+    expires = int(time.time() + self._tokenExpires)
     authString = None
     
     if self._credType == IOTConnectType.IOTC_CONNECT_SYMM_KEY:

@@ -71,9 +71,19 @@ Overall, there are two components to think about when working with Circuitpyton:
     | adafruit_logging.mpy  | File   |
     | adafruit_binascii.mpy | File   |
     | adafruit_requests.mpy | File   |
+    | adafruit_ntp.mpy      | File   |
     | adafruit_hashlib      | Folder |
     | adafruit_esp32spi     | Folder |
     | adafruit_bus_device   | Folder |
+
+* Download the latest version of the Adafruit Community CircuitPython libraries from the [releases page](https://github.com/adafruit/CircuitPython_Community_Bundle/releases)
+
+* Copy the following Adafruit Community Circuitpython libraries to the `lib` folder on your CircuitPython device
+
+    | Name                     | Type   |
+    | ------------------------ | ------ |
+    | circuitpython_base64.mpy | File   |
+    | circuitpython_hmac.mpy   | File   |
 
 * Copy the code from this repo to the device. 
 
