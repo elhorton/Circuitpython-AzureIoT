@@ -25,7 +25,7 @@ def oncommand(info):
     if commandName == "SendImage":
       showImage("smileyface.bmp")
     
-    # # if using PyBadge, try the following:
+    # # if using PyBadge, add the following:
     # global is_on
     # print("- [oncommand] => " + info.getTag() + " => " + str(info.getPayload()))
 
