@@ -1,0 +1,13 @@
+adafruit-circuitpython-binascii
+adafruit-circuitpython-busdevice
+adafruit-circuitpython-display-text
+adafruit-circuitpython-esp32spi
+adafruit-circuitpython-hashlib
+adafruit-circuitpython-minimqtt
+adafruit-circuitpython-ntp
+adafruit-circuitpython-requests
+circuitpython-base64
+circuitpython-hmac
+adafruit-circuitpython-neopixel-spi
+adafruit-circuitpython-neopixel
+adafruit-circuitpython-simpleio
