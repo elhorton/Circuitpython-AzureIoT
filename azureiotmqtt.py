@@ -7,8 +7,8 @@ import adafruit_logging as logging
 from adafruit_minimqtt import MQTT
 from constants import constants
 import time
-import base64
-import hmac
+import circuitpython_base64 as base64
+import circuitpython_hmac as hmac
 import parse
 import json
 
@@ -96,18 +96,16 @@ def MAKE_CALLBACK(client, eventName, payload, tag, status, msgid = None):
 def _quote(a, b):
   return parse.quote(a, safe=b)
 
-
-def _createMQTTClient(__self, username, passwd):
-    __self._mqtts = MQTT(__self.socket,
-                         broker=__self._hostname,
-                         username=username,
-                         password=passwd,
-                         network_manager=__self.network_manager,
-                         port=8883,
-                         keep_alive=120,
-                         is_ssl=True,
-                         client_id=__self._deviceId,
-                         log=True)
+# Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
+def _tryCreateMQTTClient(__self, username, passwd, hostname):
+    __self._mqtts = MQTT(broker=hostname,
+                        username=username,
+                        password=passwd,
+                        port=8883,
+                        keep_alive=120,
+                        is_ssl=True,
+                        client_id=__self._deviceId,
+                        log=True)
 
     __self._mqtts.logger.setLevel(logging.DEBUG)
 
@@ -121,6 +119,13 @@ def _createMQTTClient(__self, username, passwd):
     # initiate the connection using the adafruit_minimqtt library
     __self._mqtts.last_will()
     __self._mqtts.connect()
+
+def _createMQTTClient(__self, username, passwd):
+    try:
+        _tryCreateMQTTClient(__self, username, passwd, __self._hostName)
+    except ValueError:
+        # Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
+        _tryCreateMQTTClient(__self, username, passwd, 'https://' + __self._hostName)
 
 # function to make an http request
 def _request(device, target_url, method, body, headers):
@@ -139,7 +144,7 @@ def _request(device, target_url, method, body, headers):
 
 # -------------------- Class for the device itself ---------------------------------------- #
 class Device:
-  def __init__(self, scopeId, keyORCert, deviceId, credType, socket, connection, network_manager):
+  def __init__(self, scopeId, keyORCert, deviceId, credType, socket):
     self._mqtts = None
     self._loopInterval = 2
     self._mqttConnected = False
@@ -164,8 +169,6 @@ class Device:
       "SettingUpdated": None
     }
     self.socket = socket
-    self.connection = connection
-    self.network_manager = network_manager
 
     # ----- this section is only necessary if we want to add support for authenticating with a certificate file --- #
     #self._keyfile = None
@@ -375,7 +378,7 @@ class Device:
 
   def sendProperty(self, data):
     LOG_IOTC("- iotc :: sendProperty :: " + data, IOTLogLevel.IOTC_LOGGING_ALL)
-    topic = '$iothub/twin/PATCH/properties/reported/?$rid={}'.format(int(self.connection.get_time()))
+    topic = '$iothub/twin/PATCH/properties/reported/?$rid={}'.format(int(time.time()))
     return self._sendCommon(topic, data)
   
   def sendTelemetry(self, data, systemProperties = None):
@@ -415,7 +418,7 @@ class Device:
     return 0
 
   def _gen_sas_token(self, hub_host, device_name, key):
-    token_expiry = int(self.connection.get_time() + self._tokenExpires)
+    token_expiry = int(time.time() + self._tokenExpires)
     uri = hub_host + "%2Fdevices%2F" + device_name
     signed_hmac_sha256 = self._computeDrivedSymmetricKey(key, uri + "\n" + str(token_expiry))
     signature = _quote(signed_hmac_sha256, '~()*!.\'')
@@ -475,7 +478,7 @@ class Device:
       self._hostName = hostName
       return self._mqttConnect(None, self._hostName)
 
-    expires = int(self.connection.get_time() + self._tokenExpires)
+    expires = int(time.time() + self._tokenExpires)
     authString = None
     
     if self._credType == IOTConnectType.IOTC_CONNECT_SYMM_KEY:

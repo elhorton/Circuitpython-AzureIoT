@@ -10,3 +10,4 @@ __pycache__/
 .Trashes
 .metadata*
 boot_out*
+.DS_Store

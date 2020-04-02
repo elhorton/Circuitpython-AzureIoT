@@ -25,7 +25,7 @@ def oncommand(info):
     if commandName == "SendImage":
       showImage("smileyface.bmp")
     
-    # # if using PyBadge, try the following:
+    # # if using PyBadge, add the following:
     # global is_on
     # print("- [oncommand] => " + info.getTag() + " => " + str(info.getPayload()))
 
@@ -106,7 +106,7 @@ def showImage(imageFile):
 # Set up wifi connection
 spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
 connection = Connection()
-wifi_manager = connection.connect(spi, True) 
+connection.connect(spi, True) 
 
 
 # Get info for your specific device configuration
@@ -115,7 +115,7 @@ device_id = secrets['device_id']
 primary_key = secrets['key'] 
 
 # create your ESP32 wifi enabled device, pass in connection & wifi setup 
-my_device = Device(id_scope, primary_key, device_id, IOTConnectType.IOTC_CONNECT_SYMM_KEY, socket, connection, wifi_manager)
+my_device = Device(id_scope, primary_key, device_id, IOTConnectType.IOTC_CONNECT_SYMM_KEY, socket)
 
 my_device.connect()
 
