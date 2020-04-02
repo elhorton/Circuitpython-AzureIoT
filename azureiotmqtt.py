@@ -96,27 +96,16 @@ def MAKE_CALLBACK(client, eventName, payload, tag, status, msgid = None):
 def _quote(a, b):
   return parse.quote(a, safe=b)
 
-
-def _createMQTTClient(__self, username, passwd):
-    try:
-        __self._mqtts = MQTT(broker=__self._hostname,
-                            username=username,
-                            password=passwd,
-                            port=8883,
-                            keep_alive=120,
-                            is_ssl=True,
-                            client_id=__self._deviceId,
-                            log=True)
-    except ValueError:
-        # Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
-        __self._mqtts = MQTT(broker='https://' + __self._hostname,
-                            username=username,
-                            password=passwd,
-                            port=8883,
-                            keep_alive=120,
-                            is_ssl=True,
-                            client_id=__self._deviceId,
-                            log=True)
+# Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
+def _tryCreateMQTTClient(__self, username, passwd, hostname):
+    __self._mqtts = MQTT(broker=hostname,
+                        username=username,
+                        password=passwd,
+                        port=8883,
+                        keep_alive=120,
+                        is_ssl=True,
+                        client_id=__self._deviceId,
+                        log=True)
 
     __self._mqtts.logger.setLevel(logging.DEBUG)
 
@@ -130,6 +119,13 @@ def _createMQTTClient(__self, username, passwd):
     # initiate the connection using the adafruit_minimqtt library
     __self._mqtts.last_will()
     __self._mqtts.connect()
+
+def _createMQTTClient(__self, username, passwd):
+    try:
+        _tryCreateMQTTClient(__self, username, passwd, __self._hostName)
+    except ValueError:
+        # Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
+        _tryCreateMQTTClient(__self, username, passwd, 'https://' + __self._hostName)
 
 # function to make an http request
 def _request(device, target_url, method, body, headers):
