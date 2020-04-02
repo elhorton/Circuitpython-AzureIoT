@@ -31,7 +31,6 @@ class Connection:
             print("Connected to", str(esp.ssid, 'utf-8'), "\tRSSI:", esp.rssi)
             print("My IP address is", esp.pretty_ip(esp.ip_address))
         
-        self.__wifi = adafruit_esp32spi_wifimanager.ESPSPI_WiFiManager(esp, secrets)
         ntp = NTP(esp)
         while not ntp.valid_time:
             ntp.set_time()
@@ -50,6 +49,4 @@ class Connection:
             esp32_reset = DigitalInOut(board.D12)
 
         self.__connect(spi, esp32_cs, esp32_ready, esp32_reset, log)
-
-        return self.__wifi   
 

@@ -144,7 +144,7 @@ def _request(device, target_url, method, body, headers):
 
 # -------------------- Class for the device itself ---------------------------------------- #
 class Device:
-  def __init__(self, scopeId, keyORCert, deviceId, credType, socket, connection, network_manager):
+  def __init__(self, scopeId, keyORCert, deviceId, credType, socket):
     self._mqtts = None
     self._loopInterval = 2
     self._mqttConnected = False
@@ -169,8 +169,6 @@ class Device:
       "SettingUpdated": None
     }
     self.socket = socket
-    self.connection = connection
-    self.network_manager = network_manager
 
     # ----- this section is only necessary if we want to add support for authenticating with a certificate file --- #
     #self._keyfile = None
