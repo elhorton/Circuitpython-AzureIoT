@@ -73,7 +73,8 @@ gQOS_LEVEL = IOTQosLevel.IOTC_QOS_AT_MOST_ONCE
 
 
 def MAKE_CALLBACK(client, eventName, payload, tag, status, msgid=None):
-    logging.info("- iotc :: MAKE_CALLBACK :: " + eventName)
+    logger = logging.getLogger("Azure IoT")
+    logger.info("- iotc :: MAKE_CALLBACK :: " + eventName)
     try:
         obj = client["_events"]
     except:
@@ -127,6 +128,7 @@ def _createMQTTClient(__self, username, passwd):
 
 # function to make an http request
 def _request(device, target_url, method, body, headers):
+    logger = logging.getLogger("Azure IoT")
     success = False
     retryCount = 0
     while (not success) & (retryCount < 10):
@@ -135,7 +137,7 @@ def _request(device, target_url, method, body, headers):
             return response.text
         except RuntimeError as e:
             retryCount += 1
-            logging.Error(
+            logger.error(
                 "Failing to make a request via Adafruit requests library to DPS, retrying. Will try 10 times. Retry Count: %s . %s",
                 str(retryCount),
                 e,
@@ -148,6 +150,7 @@ def _request(device, target_url, method, body, headers):
 # -------------------- Class for the device itself ---------------------------------------- #
 class Device:
     def __init__(self, scopeId, keyORCert, deviceId, credType, socket):
+        self._logger = logger = logging.getLogger("Azure IoT")
         self._mqtts = None
         self._loopInterval = 2
         self._mqttConnected = False
@@ -185,11 +188,7 @@ class Device:
 
     def _computeDrivedSymmetricKey(self, secret, regId):
         secret = base64.b64decode(secret)
-        return base64.b64encode(
-            hmac.new(
-                secret, msg=regId.encode("utf8"), digestmod=hashlib.sha256
-            ).digest()
-        )
+        return base64.b64encode(hmac.new(secret, msg=regId.encode("utf8"), digestmod=hashlib.sha256).digest())
 
     def _loopAssign(self, operationId, headers):
         uri = "https://%s/%s/registrations/%s/operations/%s?api-version=%s" % (
@@ -199,7 +198,7 @@ class Device:
             operationId,
             self._dpsAPIVersion,
         )
-        logging.info("- iotc :: _loopAssign :: " + uri)
+        self._logger.info("- iotc :: _loopAssign :: " + uri)
         target = parse.urlparse(uri)
 
         content = _request(self, target.geturl(), "GET", None, headers)
@@ -210,7 +209,7 @@ class Device:
                 data = json.loads(content)
             except Exception as e:
                 err = "ERROR: %s => %s", (str(e), content)
-                logging.error(err)
+                self._logger.error(err)
                 return self._mqttConnect(err, None)
 
         if data != None and "status" in data:
@@ -220,9 +219,7 @@ class Device:
                     self._loopTry = self._loopTry + 1
                     return self._loopAssign(operationId, headers)
                 else:
-                    logging.error(
-                        "ERROR: Unable to provision the device."
-                    )  # todo error code
+                    self._logger.error("ERROR: Unable to provision the device.")  # todo error code
                     data = "Unable to provision the device."
                     return 1
             elif data["status"] == "assigned":
@@ -235,24 +232,21 @@ class Device:
         return self._mqttConnect("DPS L => " + str(data), None)
 
     def _onConnect(self, client, userdata, _, rc):
-        logging.info("- iotc :: _onConnect :: rc = " + str(rc))
+        self._logger.info("- iotc :: _onConnect :: rc = " + str(rc))
         if rc == 0:
             self._mqttConnected = True
         self._auth_response_received = True
 
     # function used for receiving an incoming desired property
     def _echoDesired(self, msg, topic):
-        logging.debug("- iotc :: _echoDesired :: " + topic)
+        self._logger.debug("- iotc :: _echoDesired :: " + topic)
         obj = None
 
         try:
             obj = json.loads(msg)
         except Exception as e:
-            logging.error(
-                "ERROR: JSON parse for SettingsUpdated message object has failed. => "
-                + msg
-                + " => "
-                + str(e)
+            self._logger.error(
+                "ERROR: JSON parse for SettingsUpdated message object has failed. => " + msg + " => " + str(e)
             )
             return
 
@@ -261,7 +255,7 @@ class Device:
             obj = obj["desired"]
 
         if not "$version" in obj:
-            logging.error("ERROR: Unexpected payload for settings update => " + msg)
+            self._logger.error("ERROR: Unexpected payload for settings update => " + msg)
             return 1
 
         version = obj["$version"]
@@ -275,14 +269,9 @@ class Device:
                 except:
                     continue
 
-                ret = MAKE_CALLBACK(
-                    self, "SettingsUpdated", json.dumps(eventValue), attr, 0
-                )
+                ret = MAKE_CALLBACK(self, "SettingsUpdated", json.dumps(eventValue), attr, 0)
 
-                if (
-                    not topic.startswith("$iothub/twin/res/200/?$rid=")
-                    and version != None
-                ):
+                if not topic.startswith("$iothub/twin/res/200/?$rid=") and version != None:
                     ret_code = 200
                     ret_message = "completed"
                     if ret.getResponseCode() != None:
@@ -296,9 +285,7 @@ class Device:
                     wrapper = {}
                     wrapper[attr] = value
                     msg = json.dumps(wrapper)
-                    topic = "$iothub/twin/PATCH/properties/reported/?$rid={}".format(
-                        int(time.time())
-                    )
+                    topic = "$iothub/twin/PATCH/properties/reported/?$rid={}".format(int(time.time()))
                     self._sendCommon(topic, msg, True)
 
     # handles an incoming message. Could be an incoming desired property (echoDesired), a cloud to device method (command and send callback)
@@ -306,13 +293,7 @@ class Device:
         topic = ""
         msg = None
 
-        logging.info(
-            "- iotc :: _onMessage :: topic("
-            + str(msg_topic)
-            + ") payload("
-            + str(payload)
-            + ")"
-        )
+        self._logger.info("- iotc :: _onMessage :: topic(" + str(msg_topic) + ") payload(" + str(payload) + ")")
 
         if payload != None:
             try:
@@ -331,9 +312,7 @@ class Device:
             # if topic.startswith('$iothub/twin/res/'): # twin response
             #   self._handleTwin(topic, msg)
             #
-            if topic.startswith(
-                "$iothub/twin/PATCH/properties/desired/"
-            ) or topic.startswith(
+            if topic.startswith("$iothub/twin/PATCH/properties/desired/") or topic.startswith(
                 "$iothub/twin/res/200/?$rid="
             ):  # twin desired property change
                 self._echoDesired(msg, topic)
@@ -342,7 +321,7 @@ class Device:
                 method_id = 1
                 method_name = "None"
                 if index == -1:
-                    logging.error("ERROR: C2D doesn't include topic id")
+                    self._logger.error("ERROR: C2D doesn't include topic id")
                 else:
                     method_id = topic[index + 5 :]
                     topic_template = "$iothub/methods/POST/"
@@ -357,39 +336,30 @@ class Device:
                 if ret.getResponseMessage() != None:
                     ret_message = ret.getResponseMessage()
 
-                next_topic = "$iothub/methods/res/{}/?$rid={}".format(
-                    ret_code, method_id
-                )
-                logging.info(
-                    "C2D: => "
-                    + next_topic
-                    + " with data "
-                    + ret_message
-                    + " and name => "
-                    + method_name
-                )
+                next_topic = "$iothub/methods/res/{}/?$rid={}".format(ret_code, method_id)
+                self._logger.info("C2D: => " + next_topic + " with data " + ret_message + " and name => " + method_name)
                 self._mqtts.publish(next_topic, ret_message, qos=gQOS_LEVEL)
             else:
                 if not topic.startswith("$iothub/twin/res/"):  # not twin response
-                    logging.error("ERROR: unknown twin! {} - {}".format(topic, msg))
+                    self._logger.error("ERROR: unknown twin! {} - {}".format(topic, msg))
         else:
-            logging.error("ERROR: (unknown message) {} - {}".format(topic, msg))
+            self._logger.error("ERROR: (unknown message) {} - {}".format(topic, msg))
 
     # function for logging MQTT traffic
     def _onLog(self, client, userdata, level, buf):
-        logging.info("mqtt-log : " + buf)
+        self._logger.info("mqtt-log : " + buf)
         if level <= 8:
-            logging.error("mqtt-log : " + buf)  # transport layer exception
+            self._logger.error("mqtt-log : " + buf)  # transport layer exception
             if self._exitOnError:
                 sys.exit()
 
     # gracefully handle disconnects
     def _onDisconnect(self, client, userdata, rc):
-        logging.info("- iotc :: _onDisconnect :: rc = " + str(rc))
+        self._logger.info("- iotc :: _onDisconnect :: rc = " + str(rc))
         self._auth_response_received = True
 
         if rc == 5:
-            logging.error("on(disconnect) : Not authorized")
+            self._logger.error("on(disconnect) : Not authorized")
             self.disconnect()
 
         if rc == 1:
@@ -399,15 +369,11 @@ class Device:
             MAKE_CALLBACK(self, "ConnectionStatus", userdata, "", rc)
 
     def _onPublish(self, client, data, topic, msgid):
-        logging.info("- iotc :: _onPublish :: " + str(data))
+        self._logger.info("- iotc :: _onPublish :: " + str(data))
         if data == None:
             data = ""
 
-        if (
-            msgid != None
-            and (str(msgid) in self._messages)
-            and self._messages[str(msgid)] != None
-        ):
+        if msgid != None and (str(msgid) in self._messages) and self._messages[str(msgid)] != None:
             MAKE_CALLBACK(self, "MessageSent", self._messages[str(msgid)], data, 0)
             if str(msgid) in self._messages:
                 del self._messages[str(msgid)]
@@ -417,14 +383,12 @@ class Device:
         return 0
 
     def sendProperty(self, data):
-        logging.info("- iotc :: sendProperty :: " + data)
-        topic = "$iothub/twin/PATCH/properties/reported/?$rid={}".format(
-            int(time.time())
-        )
+        self._logger.info("- iotc :: sendProperty :: " + data)
+        topic = "$iothub/twin/PATCH/properties/reported/?$rid={}".format(int(time.time()))
         return self._sendCommon(topic, data)
 
     def sendTelemetry(self, data, systemProperties=None):
-        logging.info("- iotc :: sendTelemetry :: " + data)
+        self._logger.info("- iotc :: sendTelemetry :: " + data)
         topic = "devices/{}/messages/events/".format(self._deviceId)
 
         if systemProperties != None:
@@ -449,7 +413,7 @@ class Device:
         if not self.isConnected():
             return
 
-        logging.info("- iotc :: disconnect :: ")
+        self._logger.info("- iotc :: disconnect :: ")
         self._mqttConnected = False
         self._mqtts.disconnect()
         return 0
@@ -461,45 +425,34 @@ class Device:
     def _gen_sas_token(self, hub_host, device_name, key):
         token_expiry = int(time.time() + self._tokenExpires)
         uri = hub_host + "%2Fdevices%2F" + device_name
-        signed_hmac_sha256 = self._computeDrivedSymmetricKey(
-            key, uri + "\n" + str(token_expiry)
-        )
+        signed_hmac_sha256 = self._computeDrivedSymmetricKey(key, uri + "\n" + str(token_expiry))
         signature = _quote(signed_hmac_sha256, "~()*!.'")
-        if signature.endswith(
-            "\n"
-        ):  # somewhere along the crypto chain a newline is inserted
+        if signature.endswith("\n"):  # somewhere along the crypto chain a newline is inserted
             signature = signature[:-1]
-        token = "SharedAccessSignature sr={}&sig={}&se={}".format(
-            uri, signature, token_expiry
-        )
+        token = "SharedAccessSignature sr={}&sig={}&se={}".format(uri, signature, token_expiry)
         return token
 
     def _mqttConnect(self, err, hostname):
         if err != None:
-            logging.error("ERROR : (_mqttConnect) " + str(err))
+            self._logger.error("ERROR : (_mqttConnect) " + str(err))
             return 1
 
-        logging.info("- iotc :: _mqttConnect :: " + hostname)
+        self._logger.info("- iotc :: _mqttConnect :: " + hostname)
 
         self._hostname = hostname
         passwd = None
 
-        username = "{}/{}/api-version={}".format(
-            self._hostname, self._deviceId, constants["iotcAPIVersion"]
-        )
+        username = "{}/{}/api-version={}".format(self._hostname, self._deviceId, constants["iotcAPIVersion"])
         if self._credType == IOTConnectType.IOTC_CONNECT_SYMM_KEY:
-            passwd = self._gen_sas_token(
-                self._hostname, self._deviceId, self._keyORCert
-            )
+            passwd = self._gen_sas_token(self._hostname, self._deviceId, self._keyORCert)
 
         _createMQTTClient(self, username, passwd)
 
-        logging.info(" - iotc :: _mqttconnect :: created mqtt client. connecting..")
+        self._logger.info(" - iotc :: _mqttconnect :: created mqtt client. connecting..")
         while self._auth_response_received == None:
             self.doNext()
-        logging.error(
-            " - iotc :: _mqttconnect :: on_connect must be fired. Connected ? "
-            + str(self.isConnected())
+        self._logger.error(
+            " - iotc :: _mqttconnect :: on_connect must be fired. Connected ? " + str(self.isConnected())
         )
         if not self.isConnected():
             return 1
@@ -508,12 +461,8 @@ class Device:
             self._auth_response_received = True
 
         self._mqtts.subscribe("devices/{}/messages/events/#".format(self._deviceId))
-        self._mqtts.subscribe(
-            "devices/{}/messages/deviceBound/#".format(self._deviceId)
-        )
-        self._mqtts.subscribe(
-            "$iothub/twin/PATCH/properties/desired/#"
-        )  # twin desired property changes
+        self._mqtts.subscribe("devices/{}/messages/deviceBound/#".format(self._deviceId))
+        self._mqtts.subscribe("$iothub/twin/PATCH/properties/desired/#")  # twin desired property changes
         self._mqtts.subscribe("$iothub/twin/res/#")  # twin properties response
         self._mqtts.subscribe("$iothub/methods/#")
 
@@ -525,12 +474,12 @@ class Device:
         return 0
 
     def getDeviceSettings(self):
-        logging.info("- iotc :: getDeviceSettings :: ")
+        self._logger.info("- iotc :: getDeviceSettings :: ")
         self.doNext()
         return self._sendCommon("$iothub/twin/GET/?$rid=0", " ")
 
     def connect(self, hostName=None):
-        logging.info("- iotc :: connect :: ")
+        self._logger.info("- iotc :: connect :: ")
 
         if hostName != None:
             self._hostName = hostName
@@ -541,18 +490,10 @@ class Device:
 
         if self._credType == IOTConnectType.IOTC_CONNECT_SYMM_KEY:
             sr = self._scopeId + "%2Fregistrations%2F" + self._deviceId
-            sigNoEncode = self._computeDrivedSymmetricKey(
-                self._keyORCert, sr + "\n" + str(expires)
-            )
+            sigNoEncode = self._computeDrivedSymmetricKey(self._keyORCert, sr + "\n" + str(expires))
             sigEncoded = _quote(sigNoEncode, "~()*!.'")
             authString = (
-                "SharedAccessSignature sr="
-                + sr
-                + "&sig="
-                + sigEncoded
-                + "&se="
-                + str(expires)
-                + "&skn=registration"
+                "SharedAccessSignature sr=" + sr + "&sig=" + sigEncoded + "&se=" + str(expires) + "&skn=registration"
             )
 
         headers = {
@@ -565,10 +506,7 @@ class Device:
             headers["authorization"] = authString
 
         if self._modelData != None:
-            body = '{"registrationId":"%s","data":%s}' % (
-                self._deviceId,
-                json.dumps(self._modelData),
-            )
+            body = '{"registrationId":"%s","data":%s}' % (self._deviceId, json.dumps(self._modelData),)
         else:
             body = '{"registrationId":"%s"}' % (self._deviceId)
 
@@ -580,10 +518,10 @@ class Device:
         )
         target = parse.urlparse(uri)
 
-        logging.info("Connecting...")
+        self._logger.info("Connecting...")
         content = _request(self, target.geturl(), "PUT", body, headers)
 
-        logging.error("Connection request made...")
+        self._logger.info("Connection request made...")
 
         data = None
         try:
@@ -596,7 +534,7 @@ class Device:
                     "ERROR: non JSON is received from %s => %s .. message : %s",
                     (self._dpsEndPoint, content, str(e)),
                 )
-                logging.error(err)
+                self._logger.error(err)
                 return self._mqttConnect(err, None)
 
         if "errorCode" in data:

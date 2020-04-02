@@ -4,10 +4,7 @@ from connection import Connection
 from secrets import secrets
 from azureiotmqtt import (
     Device,
-    IOTCallbackInfo,
     IOTConnectType,
-    IOTLogLevel,
-    IOTQosLevel,
 )
 import time
 import json
@@ -126,9 +123,7 @@ device_id = secrets["device_id"]
 primary_key = secrets["key"]
 
 # create your ESP32 wifi enabled device, pass in connection & wifi setup
-my_device = Device(
-    id_scope, primary_key, device_id, IOTConnectType.IOTC_CONNECT_SYMM_KEY, socket
-)
+my_device = Device(id_scope, primary_key, device_id, IOTConnectType.IOTC_CONNECT_SYMM_KEY, socket)
 
 my_device.connect()
 
