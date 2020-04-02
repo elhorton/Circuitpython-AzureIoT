@@ -27,61 +27,72 @@ parsing quirks from older RFCs are retained. The testcases in
 test_urlparse.py provides a good indicator of parsing behavior.
 """
 
-# import re
-# import sys
-# import collections
-import defaultdict
+import re
+import sys
+import collections
+import adafruit_logging as logging
 
-# __all__ = ["urlparse", "urlunparse", "urljoin", "urldefrag",
-#            "urlsplit", "urlunsplit", "urlencode", "parse_qs",
-#            "parse_qsl", "quote", "quote_plus", "quote_from_bytes",
-#            "unquote", "unquote_plus", "unquote_to_bytes"]
+__all__ = ["urlparse", "urlunparse", "urljoin", "urldefrag",
+           "urlsplit", "urlunsplit", "urlencode", "parse_qs",
+           "parse_qsl", "quote", "quote_plus", "quote_from_bytes",
+           "unquote", "unquote_plus", "unquote_to_bytes",
+           "DefragResult", "ParseResult", "SplitResult",
+           "DefragResultBytes", "ParseResultBytes", "SplitResultBytes"]
 
-# # A classification of schemes ('' means apply by default)
-# uses_relative = ['ftp', 'http', 'gopher', 'nntp', 'imap',
-#                  'wais', 'file', 'https', 'shttp', 'mms',
-#                  'prospero', 'rtsp', 'rtspu', '', 'sftp',
-#                  'svn', 'svn+ssh']
-# uses_netloc = ['ftp', 'http', 'gopher', 'nntp', 'telnet',
-#                'imap', 'wais', 'file', 'mms', 'https', 'shttp',
-#                'snews', 'prospero', 'rtsp', 'rtspu', 'rsync', '',
-#                'svn', 'svn+ssh', 'sftp', 'nfs', 'git', 'git+ssh']
-uses_params = ['ftp', 'hdl', 'prospero', 'http', 'imap',
+# A classification of schemes.
+# The empty string classifies URLs with no scheme specified,
+# being the default value returned by “urlsplit” and “urlparse”.
+
+uses_relative = ['', 'ftp', 'http', 'gopher', 'nntp', 'imap',
+                 'wais', 'file', 'https', 'shttp', 'mms',
+                 'prospero', 'rtsp', 'rtspu', 'sftp',
+                 'svn', 'svn+ssh', 'ws', 'wss']
+
+uses_netloc = ['', 'ftp', 'http', 'gopher', 'nntp', 'telnet',
+               'imap', 'wais', 'file', 'mms', 'https', 'shttp',
+               'snews', 'prospero', 'rtsp', 'rtspu', 'rsync',
+               'svn', 'svn+ssh', 'sftp', 'nfs', 'git', 'git+ssh',
+               'ws', 'wss']
+
+uses_params = ['', 'ftp', 'hdl', 'prospero', 'http', 'imap',
                'https', 'shttp', 'rtsp', 'rtspu', 'sip', 'sips',
-               'mms', '', 'sftp', 'tel']
+               'mms', 'sftp', 'tel']
 
-# # These are not actually used anymore, but should stay for backwards
-# # compatibility.  (They are undocumented, but have a public-looking name.)
-# non_hierarchical = ['gopher', 'hdl', 'mailto', 'news',
-#                     'telnet', 'wais', 'imap', 'snews', 'sip', 'sips']
-# uses_query = ['http', 'wais', 'imap', 'https', 'shttp', 'mms',
-#               'gopher', 'rtsp', 'rtspu', 'sip', 'sips', '']
-# uses_fragment = ['ftp', 'hdl', 'http', 'gopher', 'news',
-#                  'nntp', 'wais', 'https', 'shttp', 'snews',
-#                  'file', 'prospero', '']
+# These are not actually used anymore, but should stay for backwards
+# compatibility.  (They are undocumented, but have a public-looking name.)
 
-# # Characters valid in scheme names
+non_hierarchical = ['gopher', 'hdl', 'mailto', 'news',
+                    'telnet', 'wais', 'imap', 'snews', 'sip', 'sips']
+
+uses_query = ['', 'http', 'wais', 'imap', 'https', 'shttp', 'mms',
+              'gopher', 'rtsp', 'rtspu', 'sip', 'sips']
+
+uses_fragment = ['', 'ftp', 'hdl', 'http', 'gopher', 'news',
+                 'nntp', 'wais', 'https', 'shttp', 'snews',
+                 'file', 'prospero']
+
+# Characters valid in scheme names
 scheme_chars = ('abcdefghijklmnopqrstuvwxyz'
                 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                 '0123456789'
                 '+-.')
 
-# # XXX: Consider replacing with functools.lru_cache
+# XXX: Consider replacing with functools.lru_cache
 MAX_CACHE_SIZE = 20
 _parse_cache = {}
 
-# def clear_cache():
-#     """Clear the parse cache and the quoters cache."""
-#     _parse_cache.clear()
-#     _safe_quoters.clear()
+def clear_cache():
+    """Clear the parse cache and the quoters cache."""
+    _parse_cache.clear()
+    _safe_quoters.clear()
 
 
-# # Helpers for bytes handling
-# # For 3.2, we deliberately require applications that
-# # handle improperly quoted URLs to do their own
-# # decoding and encoding. If valid use cases are
-# # presented, we may relax this by using latin-1
-# # decoding internally for 3.3
+# Helpers for bytes handling
+# For 3.2, we deliberately require applications that
+# handle improperly quoted URLs to do their own
+# decoding and encoding. If valid use cases are
+# presented, we may relax this by using latin-1
+# decoding internally for 3.3
 _implicit_encoding = 'ascii'
 _implicit_errors = 'strict'
 
@@ -121,12 +132,12 @@ class _ResultMixinStr(object):
         return self._encoded_counterpart(*(x.encode(encoding, errors) for x in self))
 
 
-# class _ResultMixinBytes(object):
-#     """Standard approach to decoding parsed results from bytes to str"""
-#     __slots__ = ()
+class _ResultMixinBytes(object):
+    """Standard approach to decoding parsed results from bytes to str"""
+    __slots__ = ()
 
-#     def decode(self, encoding='ascii', errors='strict'):
-#         return self._decoded_counterpart(*(x.decode(encoding, errors) for x in self))
+    def decode(self, encoding='ascii', errors='strict'):
+        return self._decoded_counterpart(*(x.decode(encoding, errors) for x in self))
 
 
 class _NetlocResultMixinBase(object):
@@ -145,19 +156,24 @@ class _NetlocResultMixinBase(object):
     def hostname(self):
         hostname = self._hostinfo[0]
         if not hostname:
-            hostname = None
-        elif hostname is not None:
-            hostname = hostname.lower()
-        return hostname
+            return None
+        # Scoped IPv6 address may have zone info, which must not be lowercased
+        # like http://[fe80::822a:a8ff:fe49:470c%tESt]:1234/keys
+        separator = '%' if isinstance(hostname, str) else b'%'
+        hostname, percent, zone = hostname.partition(separator)
+        return hostname.lower() + percent + zone
 
     @property
     def port(self):
         port = self._hostinfo[1]
         if port is not None:
-            port = int(port, 10)
-            # Return None on an illegal port
+            try:
+                port = int(port, 10)
+            except ValueError:
+                message = 'Port could not be cast to integer value as {port}'.format(port=port)
+                raise ValueError(message) from None
             if not ( 0 <= port <= 65535):
-                return None
+                raise ValueError("Port out of range 0-65535")
         return port
 
 
@@ -183,63 +199,126 @@ class _NetlocResultMixinStr(_NetlocResultMixinBase, _ResultMixinStr):
         _, have_open_br, bracketed = hostinfo.partition('[')
         if have_open_br:
             hostname, _, port = bracketed.partition(']')
-            _, have_port, port = port.partition(':')
+            _, _, port = port.partition(':')
         else:
-            hostname, have_port, port = hostinfo.partition(':')
-        if not have_port:
+            hostname, _, port = hostinfo.partition(':')
+        if not port:
             port = None
         return hostname, port
 
 
-# class _NetlocResultMixinBytes(_NetlocResultMixinBase, _ResultMixinBytes):
-#     __slots__ = ()
+class _NetlocResultMixinBytes(_NetlocResultMixinBase, _ResultMixinBytes):
+    __slots__ = ()
 
-#     @property
-#     def _userinfo(self):
-#         netloc = self.netloc
-#         userinfo, have_info, hostinfo = netloc.rpartition(b'@')
-#         if have_info:
-#             username, have_password, password = userinfo.partition(b':')
-#             if not have_password:
-#                 password = None
-#         else:
-#             username = password = None
-#         return username, password
+    @property
+    def _userinfo(self):
+        netloc = self.netloc
+        userinfo, have_info, hostinfo = netloc.rpartition(b'@')
+        if have_info:
+            username, have_password, password = userinfo.partition(b':')
+            if not have_password:
+                password = None
+        else:
+            username = password = None
+        return username, password
 
-#     @property
-#     def _hostinfo(self):
-#         netloc = self.netloc
-#         _, _, hostinfo = netloc.rpartition(b'@')
-#         _, have_open_br, bracketed = hostinfo.partition(b'[')
-#         if have_open_br:
-#             hostname, _, port = bracketed.partition(b']')
-#             _, have_port, port = port.partition(b':')
-#         else:
-#             hostname, have_port, port = hostinfo.partition(b':')
-#         if not have_port:
-#             port = None
-#         return hostname, port
+    @property
+    def _hostinfo(self):
+        netloc = self.netloc
+        _, _, hostinfo = netloc.rpartition(b'@')
+        _, have_open_br, bracketed = hostinfo.partition(b'[')
+        if have_open_br:
+            hostname, _, port = bracketed.partition(b']')
+            _, _, port = port.partition(b':')
+        else:
+            hostname, _, port = hostinfo.partition(b':')
+        if not port:
+            port = None
+        return hostname, port
 
 
 from collections import namedtuple
 
-# _DefragResultBase = namedtuple('DefragResult', 'url fragment')
-_SplitResultBase = namedtuple('SplitResult', 'scheme netloc path query fragment')
-_ParseResultBase = namedtuple('ParseResult', 'scheme netloc path params query fragment')
+_DefragResultBase = namedtuple('DefragResult', 'url fragment')
+_SplitResultBase = namedtuple(
+    'SplitResult', 'scheme netloc path query fragment')
+_ParseResultBase = namedtuple(
+    'ParseResult', 'scheme netloc path params query fragment')
 
-# # For backwards compatibility, alias _NetlocResultMixinStr
-# # ResultBase is no longer part of the documented API, but it is
-# # retained since deprecating it isn't worth the hassle
-# ResultBase = _NetlocResultMixinStr
+_DefragResultBase.__doc__ = """
+DefragResult(url, fragment)
 
-# # Structured result objects for string data
-# class DefragResult(_DefragResultBase, _ResultMixinStr):
-#     __slots__ = ()
-#     def geturl(self):
-#         if self.fragment:
-#             return self.url + '#' + self.fragment
-#         else:
-#             return self.url
+A 2-tuple that contains the url without fragment identifier and the fragment
+identifier as a separate argument.
+"""
+
+_DefragResultBase.url.__doc__ = """The URL with no fragment identifier."""
+
+_DefragResultBase.fragment.__doc__ = """
+Fragment identifier separated from URL, that allows indirect identification of a
+secondary resource by reference to a primary resource and additional identifying
+information.
+"""
+
+_SplitResultBase.__doc__ = """
+SplitResult(scheme, netloc, path, query, fragment)
+
+A 5-tuple that contains the different components of a URL. Similar to
+ParseResult, but does not split params.
+"""
+
+_SplitResultBase.scheme.__doc__ = """Specifies URL scheme for the request."""
+
+_SplitResultBase.netloc.__doc__ = """
+Network location where the request is made to.
+"""
+
+_SplitResultBase.path.__doc__ = """
+The hierarchical path, such as the path to a file to download.
+"""
+
+_SplitResultBase.query.__doc__ = """
+The query component, that contains non-hierarchical data, that along with data
+in path component, identifies a resource in the scope of URI's scheme and
+network location.
+"""
+
+_SplitResultBase.fragment.__doc__ = """
+Fragment identifier, that allows indirect identification of a secondary resource
+by reference to a primary resource and additional identifying information.
+"""
+
+_ParseResultBase.__doc__ = """
+ParseResult(scheme, netloc, path, params, query, fragment)
+
+A 6-tuple that contains components of a parsed URL.
+"""
+
+_ParseResultBase.scheme.__doc__ = _SplitResultBase.scheme.__doc__
+_ParseResultBase.netloc.__doc__ = _SplitResultBase.netloc.__doc__
+_ParseResultBase.path.__doc__ = _SplitResultBase.path.__doc__
+_ParseResultBase.params.__doc__ = """
+Parameters for last path element used to dereference the URI in order to provide
+access to perform some operation on the resource.
+"""
+
+_ParseResultBase.query.__doc__ = _SplitResultBase.query.__doc__
+_ParseResultBase.fragment.__doc__ = _SplitResultBase.fragment.__doc__
+
+
+# For backwards compatibility, alias _NetlocResultMixinStr
+# ResultBase is no longer part of the documented API, but it is
+# retained since deprecating it isn't worth the hassle
+ResultBase = _NetlocResultMixinStr
+
+# Structured result objects for string data
+class DefragResult(_DefragResultBase, _ResultMixinStr):
+    __slots__ = ()
+    def geturl(self):
+        if self.fragment:
+            return self.url + '#' + self.fragment
+        else:
+            return self.url
 
 class SplitResult(_SplitResultBase, _NetlocResultMixinStr):
     __slots__ = ()
@@ -251,45 +330,59 @@ class ParseResult(_ParseResultBase, _NetlocResultMixinStr):
     def geturl(self):
         return urlunparse(self)
 
-# # Structured result objects for bytes data
-# class DefragResultBytes(_DefragResultBase, _ResultMixinBytes):
-#     __slots__ = ()
-#     def geturl(self):
-#         if self.fragment:
-#             return self.url + b'#' + self.fragment
-#         else:
-#             return self.url
+# Structured result objects for bytes data
+class DefragResultBytes(_DefragResultBase, _ResultMixinBytes):
+    __slots__ = ()
+    def geturl(self):
+        if self.fragment:
+            return self.url + b'#' + self.fragment
+        else:
+            return self.url
 
-# class SplitResultBytes(_SplitResultBase, _NetlocResultMixinBytes):
-#     __slots__ = ()
-#     def geturl(self):
-#         return urlunsplit(self)
+class SplitResultBytes(_SplitResultBase, _NetlocResultMixinBytes):
+    __slots__ = ()
+    def geturl(self):
+        return urlunsplit(self)
 
-# class ParseResultBytes(_ParseResultBase, _NetlocResultMixinBytes):
-#     __slots__ = ()
-#     def geturl(self):
-#         return urlunparse(self)
+class ParseResultBytes(_ParseResultBase, _NetlocResultMixinBytes):
+    __slots__ = ()
+    def geturl(self):
+        return urlunparse(self)
 
-# # Set up the encode/decode result pairs
-# def _fix_result_transcoding():
-#     _result_pairs = (
-#         (DefragResult, DefragResultBytes),
-#         (SplitResult, SplitResultBytes),
-#         (ParseResult, ParseResultBytes),
-#     )
-#     for _decoded, _encoded in _result_pairs:
-#         _decoded._encoded_counterpart = _encoded
-#         _encoded._decoded_counterpart = _decoded
+# Set up the encode/decode result pairs
+def _fix_result_transcoding():
+    _result_pairs = (
+        (DefragResult, DefragResultBytes),
+        (SplitResult, SplitResultBytes),
+        (ParseResult, ParseResultBytes),
+    )
+    for _decoded, _encoded in _result_pairs:
+        _decoded._encoded_counterpart = _encoded
+        _encoded._decoded_counterpart = _decoded
 
-# _fix_result_transcoding()
-# del _fix_result_transcoding
+_fix_result_transcoding()
+del _fix_result_transcoding
 
 def urlparse(url, scheme='', allow_fragments=True):
     """Parse a URL into 6 components:
     <scheme>://<netloc>/<path>;<params>?<query>#<fragment>
-    Return a 6-tuple: (scheme, netloc, path, params, query, fragment).
-    Note that we don't break the components up in smaller bits
-    (e.g. netloc is a single string) and we don't expand % escapes."""
+
+    The result is a named 6-tuple with fields corresponding to the
+    above. It is either a ParseResult or ParseResultBytes object,
+    depending on the type of the url parameter.
+
+    The username, password, hostname, and port sub-components of netloc
+    can also be accessed as attributes of the returned object.
+
+    The scheme argument provides the default value of the scheme
+    component when no scheme is found in url.
+
+    If allow_fragments is False, no attempt is made to separate the
+    fragment component from the previous component, which can be either
+    path or query.
+
+    Note that % escapes are not expanded.
+    """
     url, scheme, _coerce_result = _coerce_args(url, scheme)
     splitresult = urlsplit(url, scheme, allow_fragments)
     scheme, netloc, url, query, fragment = splitresult
@@ -317,12 +410,45 @@ def _splitnetloc(url, start=0):
             delim = min(delim, wdelim)     # use earliest delim position
     return url[start:delim], url[delim:]   # return (domain, rest)
 
+def _checknetloc(netloc):
+    if not netloc or netloc.isascii():
+        return
+    # looking for characters like \u2100 that expand to 'a/c'
+    # IDNA uses NFKC equivalence, so normalize for this check
+    import unicodedata
+    n = netloc.replace('@', '')   # ignore characters already included
+    n = n.replace(':', '')        # but not the surrounding text
+    n = n.replace('#', '')
+    n = n.replace('?', '')
+    netloc2 = unicodedata.normalize('NFKC', n)
+    if n == netloc2:
+        return
+    for c in '/?#@:':
+        if c in netloc2:
+            raise ValueError("netloc '" + netloc + "' contains invalid " +
+                             "characters under NFKC normalization")
+
 def urlsplit(url, scheme='', allow_fragments=True):
     """Parse a URL into 5 components:
     <scheme>://<netloc>/<path>?<query>#<fragment>
-    Return a 5-tuple: (scheme, netloc, path, query, fragment).
-    Note that we don't break the components up in smaller bits
-    (e.g. netloc is a single string) and we don't expand % escapes."""
+
+    The result is a named 5-tuple with fields corresponding to the
+    above. It is either a SplitResult or SplitResultBytes object,
+    depending on the type of the url parameter.
+
+    The username, password, hostname, and port sub-components of netloc
+    can also be accessed as attributes of the returned object.
+
+    The scheme argument provides the default value of the scheme
+    component when no scheme is found in url.
+
+    If allow_fragments is False, no attempt is made to separate the
+    fragment component from the previous component, which can be either
+    path or query.
+
+    Note that % escapes are not expanded.
+    """
+
     url, scheme, _coerce_result = _coerce_args(url, scheme)
     allow_fragments = bool(allow_fragments)
     key = url, scheme, allow_fragments, type(url), type(scheme)
@@ -334,31 +460,11 @@ def urlsplit(url, scheme='', allow_fragments=True):
     netloc = query = fragment = ''
     i = url.find(':')
     if i > 0:
-        if url[:i] == 'http': # optimize the common case
-            scheme = url[:i].lower()
-            url = url[i+1:]
-            if url[:2] == '//':
-                netloc, url = _splitnetloc(url, 2)
-                if (('[' in netloc and ']' not in netloc) or
-                        (']' in netloc and '[' not in netloc)):
-                    raise ValueError("Invalid IPv6 URL")
-            if allow_fragments and '#' in url:
-                url, fragment = url.split('#', 1)
-            if '?' in url:
-                url, query = url.split('?', 1)
-            v = SplitResult(scheme, netloc, url, query, fragment)
-            _parse_cache[key] = v
-            return _coerce_result(v)
         for c in url[:i]:
             if c not in scheme_chars:
                 break
         else:
-            # make sure "url" is not actually a port number (in which case
-            # "scheme" is really part of the path)
-            rest = url[i+1:]
-            if not rest or any(c not in '0123456789' for c in rest):
-                # not a port number
-                scheme, url = url[:i].lower(), rest
+            scheme, url = url[:i].lower(), url[i+1:]
 
     if url[:2] == '//':
         netloc, url = _splitnetloc(url, 2)
@@ -369,6 +475,7 @@ def urlsplit(url, scheme='', allow_fragments=True):
         url, fragment = url.split('#', 1)
     if '?' in url:
         url, query = url.split('?', 1)
+    _checknetloc(netloc)
     v = SplitResult(scheme, netloc, url, query, fragment)
     _parse_cache[key] = v
     return _coerce_result(v)
@@ -403,227 +510,270 @@ def urlunsplit(components):
         url = url + '#' + fragment
     return _coerce_result(url)
 
-# def urljoin(base, url, allow_fragments=True):
-#     """Join a base URL and a possibly relative URL to form an absolute
-#     interpretation of the latter."""
-#     if not base:
-#         return url
-#     if not url:
-#         return base
-#     base, url, _coerce_result = _coerce_args(base, url)
-#     bscheme, bnetloc, bpath, bparams, bquery, bfragment = \
-#             urlparse(base, '', allow_fragments)
-#     scheme, netloc, path, params, query, fragment = \
-#             urlparse(url, bscheme, allow_fragments)
-#     if scheme != bscheme or scheme not in uses_relative:
-#         return _coerce_result(url)
-#     if scheme in uses_netloc:
-#         if netloc:
-#             return _coerce_result(urlunparse((scheme, netloc, path,
-#                                               params, query, fragment)))
-#         netloc = bnetloc
-#     if path[:1] == '/':
-#         return _coerce_result(urlunparse((scheme, netloc, path,
-#                                           params, query, fragment)))
-#     if not path and not params:
-#         path = bpath
-#         params = bparams
-#         if not query:
-#             query = bquery
-#         return _coerce_result(urlunparse((scheme, netloc, path,
-#                                           params, query, fragment)))
-#     segments = bpath.split('/')[:-1] + path.split('/')
-#     # XXX The stuff below is bogus in various ways...
-#     if segments[-1] == '.':
-#         segments[-1] = ''
-#     while '.' in segments:
-#         segments.remove('.')
-#     while 1:
-#         i = 1
-#         n = len(segments) - 1
-#         while i < n:
-#             if (segments[i] == '..'
-#                 and segments[i-1] not in ('', '..')):
-#                 del segments[i-1:i+1]
-#                 break
-#             i = i+1
-#         else:
-#             break
-#     if segments == ['', '..']:
-#         segments[-1] = ''
-#     elif len(segments) >= 2 and segments[-1] == '..':
-#         segments[-2:] = ['']
-#     return _coerce_result(urlunparse((scheme, netloc, '/'.join(segments),
-#                                       params, query, fragment)))
+def urljoin(base, url, allow_fragments=True):
+    """Join a base URL and a possibly relative URL to form an absolute
+    interpretation of the latter."""
+    if not base:
+        return url
+    if not url:
+        return base
 
-# def urldefrag(url):
-#     """Removes any existing fragment from URL.
+    base, url, _coerce_result = _coerce_args(base, url)
+    bscheme, bnetloc, bpath, bparams, bquery, bfragment = \
+            urlparse(base, '', allow_fragments)
+    scheme, netloc, path, params, query, fragment = \
+            urlparse(url, bscheme, allow_fragments)
 
-#     Returns a tuple of the defragmented URL and the fragment.  If
-#     the URL contained no fragments, the second element is the
-#     empty string.
-#     """
-#     url, _coerce_result = _coerce_args(url)
-#     if '#' in url:
-#         s, n, p, a, q, frag = urlparse(url)
-#         defrag = urlunparse((s, n, p, a, q, ''))
-#     else:
-#         frag = ''
-#         defrag = url
-#     return _coerce_result(DefragResult(defrag, frag))
+    if scheme != bscheme or scheme not in uses_relative:
+        return _coerce_result(url)
+    if scheme in uses_netloc:
+        if netloc:
+            return _coerce_result(urlunparse((scheme, netloc, path,
+                                              params, query, fragment)))
+        netloc = bnetloc
 
-# _hexdig = '0123456789ABCDEFabcdef'
-# _hextobyte = {(a + b).encode(): bytes([int(a + b, 16)])
-#               for a in _hexdig for b in _hexdig}
+    if not path and not params:
+        path = bpath
+        params = bparams
+        if not query:
+            query = bquery
+        return _coerce_result(urlunparse((scheme, netloc, path,
+                                          params, query, fragment)))
 
-# def unquote_to_bytes(string):
-#     """unquote_to_bytes('abc%20def') -> b'abc def'."""
-#     # Note: strings are encoded as UTF-8. This is only an issue if it contains
-#     # unescaped non-ASCII characters, which URIs should not.
-#     if not string:
-#         # Is it a string-like object?
-#         string.split
-#         return b''
-#     if isinstance(string, str):
-#         string = string.encode('utf-8')
-#     bits = string.split(b'%')
-#     if len(bits) == 1:
-#         return string
-#     res = [bits[0]]
-#     append = res.append
-#     for item in bits[1:]:
-#         try:
-#             append(_hextobyte[item[:2]])
-#             append(item[2:])
-#         except KeyError:
-#             append(b'%')
-#             append(item)
-#     return b''.join(res)
+    base_parts = bpath.split('/')
+    if base_parts[-1] != '':
+        # the last item is not a directory, so will not be taken into account
+        # in resolving the relative path
+        del base_parts[-1]
 
-# _asciire = re.compile(r'([\x00-\x7f]+)')
+    # for rfc3986, ignore all base path should the first character be root.
+    if path[:1] == '/':
+        segments = path.split('/')
+    else:
+        segments = base_parts + path.split('/')
+        # filter out elements that would cause redundant slashes on re-joining
+        # the resolved_path
+        segments[1:-1] = filter(None, segments[1:-1])
 
-# def unquote(string, encoding='utf-8', errors='replace'):
-#     """Replace %xx escapes by their single-character equivalent. The optional
-#     encoding and errors parameters specify how to decode percent-encoded
-#     sequences into Unicode characters, as accepted by the bytes.decode()
-#     method.
-#     By default, percent-encoded sequences are decoded with UTF-8, and invalid
-#     sequences are replaced by a placeholder character.
+    resolved_path = []
 
-#     unquote('abc%20def') -> 'abc def'.
-#     """
-#     if '%' not in string:
-#         string.split
-#         return string
-#     if encoding is None:
-#         encoding = 'utf-8'
-#     if errors is None:
-#         errors = 'replace'
-#     bits = _asciire.split(string)
-#     res = [bits[0]]
-#     append = res.append
-#     for i in range(1, len(bits), 2):
-#         append(unquote_to_bytes(bits[i]).decode(encoding, errors))
-#         append(bits[i + 1])
-#     return ''.join(res)
+    for seg in segments:
+        if seg == '..':
+            try:
+                resolved_path.pop()
+            except IndexError:
+                # ignore any .. segments that would otherwise cause an IndexError
+                # when popped from resolved_path if resolving for rfc3986
+                pass
+        elif seg == '.':
+            continue
+        else:
+            resolved_path.append(seg)
 
-# def parse_qs(qs, keep_blank_values=False, strict_parsing=False,
-#              encoding='utf-8', errors='replace'):
-#     """Parse a query given as a string argument.
+    if segments[-1] in ('.', '..'):
+        # do some post-processing here. if the last segment was a relative dir,
+        # then we need to append the trailing '/'
+        resolved_path.append('')
 
-#         Arguments:
+    return _coerce_result(urlunparse((scheme, netloc, '/'.join(
+        resolved_path) or '/', params, query, fragment)))
 
-#         qs: percent-encoded query string to be parsed
 
-#         keep_blank_values: flag indicating whether blank values in
-#             percent-encoded queries should be treated as blank strings.
-#             A true value indicates that blanks should be retained as
-#             blank strings.  The default false value indicates that
-#             blank values are to be ignored and treated as if they were
-#             not included.
+def urldefrag(url):
+    """Removes any existing fragment from URL.
 
-#         strict_parsing: flag indicating what to do with parsing errors.
-#             If false (the default), errors are silently ignored.
-#             If true, errors raise a ValueError exception.
+    Returns a tuple of the defragmented URL and the fragment.  If
+    the URL contained no fragments, the second element is the
+    empty string.
+    """
+    url, _coerce_result = _coerce_args(url)
+    if '#' in url:
+        s, n, p, a, q, frag = urlparse(url)
+        defrag = urlunparse((s, n, p, a, q, ''))
+    else:
+        frag = ''
+        defrag = url
+    return _coerce_result(DefragResult(defrag, frag))
 
-#         encoding and errors: specify how to decode percent-encoded sequences
-#             into Unicode characters, as accepted by the bytes.decode() method.
-#     """
-#     parsed_result = {}
-#     pairs = parse_qsl(qs, keep_blank_values, strict_parsing,
-#                       encoding=encoding, errors=errors)
-#     for name, value in pairs:
-#         if name in parsed_result:
-#             parsed_result[name].append(value)
-#         else:
-#             parsed_result[name] = [value]
-#     return parsed_result
+_hexdig = '0123456789ABCDEFabcdef'
+_hextobyte = None
 
-# def parse_qsl(qs, keep_blank_values=False, strict_parsing=False,
-#               encoding='utf-8', errors='replace'):
-#     """Parse a query given as a string argument.
+def unquote_to_bytes(string):
+    """unquote_to_bytes('abc%20def') -> b'abc def'."""
+    # Note: strings are encoded as UTF-8. This is only an issue if it contains
+    # unescaped non-ASCII characters, which URIs should not.
+    if not string:
+        # Is it a string-like object?
+        string.split
+        return b''
+    if isinstance(string, str):
+        string = string.encode('utf-8')
+    bits = string.split(b'%')
+    if len(bits) == 1:
+        return string
+    res = [bits[0]]
+    append = res.append
+    # Delay the initialization of the table to not waste memory
+    # if the function is never called
+    global _hextobyte
+    if _hextobyte is None:
+        _hextobyte = {(a + b).encode(): bytes.fromhex(a + b)
+                      for a in _hexdig for b in _hexdig}
+    for item in bits[1:]:
+        try:
+            append(_hextobyte[item[:2]])
+            append(item[2:])
+        except KeyError:
+            append(b'%')
+            append(item)
+    return b''.join(res)
 
-#     Arguments:
+_asciire = re.compile('([\x00-\x7f]+)')
 
-#     qs: percent-encoded query string to be parsed
+def unquote(string, encoding='utf-8', errors='replace'):
+    """Replace %xx escapes by their single-character equivalent. The optional
+    encoding and errors parameters specify how to decode percent-encoded
+    sequences into Unicode characters, as accepted by the bytes.decode()
+    method.
+    By default, percent-encoded sequences are decoded with UTF-8, and invalid
+    sequences are replaced by a placeholder character.
 
-#     keep_blank_values: flag indicating whether blank values in
-#         percent-encoded queries should be treated as blank strings.  A
-#         true value indicates that blanks should be retained as blank
-#         strings.  The default false value indicates that blank values
-#         are to be ignored and treated as if they were  not included.
+    unquote('abc%20def') -> 'abc def'.
+    """
+    if isinstance(string, bytes):
+        return unquote_to_bytes(string).decode(encoding, errors)
+    if '%' not in string:
+        string.split
+        return string
+    if encoding is None:
+        encoding = 'utf-8'
+    if errors is None:
+        errors = 'replace'
+    bits = _asciire.split(string)
+    res = [bits[0]]
+    append = res.append
+    for i in range(1, len(bits), 2):
+        append(unquote_to_bytes(bits[i]).decode(encoding, errors))
+        append(bits[i + 1])
+    return ''.join(res)
 
-#     strict_parsing: flag indicating what to do with parsing errors. If
-#         false (the default), errors are silently ignored. If true,
-#         errors raise a ValueError exception.
 
-#     encoding and errors: specify how to decode percent-encoded sequences
-#         into Unicode characters, as accepted by the bytes.decode() method.
+def parse_qs(qs, keep_blank_values=False, strict_parsing=False,
+             encoding='utf-8', errors='replace', max_num_fields=None):
+    """Parse a query given as a string argument.
 
-#     Returns a list, as G-d intended.
-#     """
-#     qs, _coerce_result = _coerce_args(qs)
-#     pairs = [s2 for s1 in qs.split('&') for s2 in s1.split(';')]
-#     r = []
-#     for name_value in pairs:
-#         if not name_value and not strict_parsing:
-#             continue
-#         nv = name_value.split('=', 1)
-#         if len(nv) != 2:
-#             if strict_parsing:
-#                 raise ValueError("bad query field: %r" % (name_value,))
-#             # Handle case of a control-name with no equal sign
-#             if keep_blank_values:
-#                 nv.append('')
-#             else:
-#                 continue
-#         if len(nv[1]) or keep_blank_values:
-#             name = nv[0].replace('+', ' ')
-#             name = unquote(name, encoding=encoding, errors=errors)
-#             name = _coerce_result(name)
-#             value = nv[1].replace('+', ' ')
-#             value = unquote(value, encoding=encoding, errors=errors)
-#             value = _coerce_result(value)
-#             r.append((name, value))
-#     return r
+        Arguments:
 
-# def unquote_plus(string, encoding='utf-8', errors='replace'):
-#     """Like unquote(), but also replace plus signs by spaces, as required for
-#     unquoting HTML form values.
+        qs: percent-encoded query string to be parsed
 
-#     unquote_plus('%7e/abc+def') -> '~/abc def'
-#     """
-#     string = string.replace('+', ' ')
-#     return unquote(string, encoding, errors)
+        keep_blank_values: flag indicating whether blank values in
+            percent-encoded queries should be treated as blank strings.
+            A true value indicates that blanks should be retained as
+            blank strings.  The default false value indicates that
+            blank values are to be ignored and treated as if they were
+            not included.
+
+        strict_parsing: flag indicating what to do with parsing errors.
+            If false (the default), errors are silently ignored.
+            If true, errors raise a ValueError exception.
+
+        encoding and errors: specify how to decode percent-encoded sequences
+            into Unicode characters, as accepted by the bytes.decode() method.
+
+        max_num_fields: int. If set, then throws a ValueError if there
+            are more than n fields read by parse_qsl().
+
+        Returns a dictionary.
+    """
+    parsed_result = {}
+    pairs = parse_qsl(qs, keep_blank_values, strict_parsing,
+                      encoding=encoding, errors=errors,
+                      max_num_fields=max_num_fields)
+    for name, value in pairs:
+        if name in parsed_result:
+            parsed_result[name].append(value)
+        else:
+            parsed_result[name] = [value]
+    return parsed_result
+
+
+def parse_qsl(qs, keep_blank_values=False, strict_parsing=False,
+              encoding='utf-8', errors='replace', max_num_fields=None):
+    """Parse a query given as a string argument.
+
+        Arguments:
+
+        qs: percent-encoded query string to be parsed
+
+        keep_blank_values: flag indicating whether blank values in
+            percent-encoded queries should be treated as blank strings.
+            A true value indicates that blanks should be retained as blank
+            strings.  The default false value indicates that blank values
+            are to be ignored and treated as if they were  not included.
+
+        strict_parsing: flag indicating what to do with parsing errors. If
+            false (the default), errors are silently ignored. If true,
+            errors raise a ValueError exception.
+
+        encoding and errors: specify how to decode percent-encoded sequences
+            into Unicode characters, as accepted by the bytes.decode() method.
+
+        max_num_fields: int. If set, then throws a ValueError
+            if there are more than n fields read by parse_qsl().
+
+        Returns a list, as G-d intended.
+    """
+    qs, _coerce_result = _coerce_args(qs)
+
+    # If max_num_fields is defined then check that the number of fields
+    # is less than max_num_fields. This prevents a memory exhaustion DOS
+    # attack via post bodies with many fields.
+    if max_num_fields is not None:
+        num_fields = 1 + qs.count('&') + qs.count(';')
+        if max_num_fields < num_fields:
+            raise ValueError('Max number of fields exceeded')
+
+    pairs = [s2 for s1 in qs.split('&') for s2 in s1.split(';')]
+    r = []
+    for name_value in pairs:
+        if not name_value and not strict_parsing:
+            continue
+        nv = name_value.split('=', 1)
+        if len(nv) != 2:
+            if strict_parsing:
+                raise ValueError("bad query field: %r" % (name_value,))
+            # Handle case of a control-name with no equal sign
+            if keep_blank_values:
+                nv.append('')
+            else:
+                continue
+        if len(nv[1]) or keep_blank_values:
+            name = nv[0].replace('+', ' ')
+            name = unquote(name, encoding=encoding, errors=errors)
+            name = _coerce_result(name)
+            value = nv[1].replace('+', ' ')
+            value = unquote(value, encoding=encoding, errors=errors)
+            value = _coerce_result(value)
+            r.append((name, value))
+    return r
+
+def unquote_plus(string, encoding='utf-8', errors='replace'):
+    """Like unquote(), but also replace plus signs by spaces, as required for
+    unquoting HTML form values.
+
+    unquote_plus('%7e/abc+def') -> '~/abc def'
+    """
+    string = string.replace('+', ' ')
+    return unquote(string, encoding, errors)
 
 _ALWAYS_SAFE = frozenset(b'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                          b'abcdefghijklmnopqrstuvwxyz'
                          b'0123456789'
-                         b'_.-')
+                         b'_.-~')
 _ALWAYS_SAFE_BYTES = bytes(_ALWAYS_SAFE)
 _safe_quoters = {}
 
-class Quoter(defaultdict.defaultdict):
+class Quoter(collections.defaultdict):
     """A mapping from bytes (in range(0,256)) to strings.
 
     String values are percent-encoded byte values, unless the key < 128, and
@@ -637,7 +787,7 @@ class Quoter(defaultdict.defaultdict):
 
     def __repr__(self):
         # Without this, will just display as a defaultdict
-        return "<Quoter %r>" % dict(self)
+        return "<%s %r>" % (self.__class__.__name__, dict(self))
 
     def __missing__(self, b):
         # Handle a cache miss. Store quoted string in cache and return.
@@ -649,25 +799,35 @@ def quote(string, safe='/', encoding=None, errors=None):
     """quote('abc def') -> 'abc%20def'
 
     Each part of a URL, e.g. the path info, the query, etc., has a
-    different set of reserved characters that must be quoted.
+    different set of reserved characters that must be quoted. The
+    quote function offers a cautious (not minimal) way to quote a
+    string for most of these parts.
 
-    RFC 2396 Uniform Resource Identifiers (URI): Generic Syntax lists
-    the following reserved characters.
+    RFC 3986 Uniform Resource Identifier (URI): Generic Syntax lists
+    the following (un)reserved characters.
 
-    reserved    = ";" | "/" | "?" | ":" | "@" | "&" | "=" | "+" |
-                  "$" | ","
+    unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
+    reserved      = gen-delims / sub-delims
+    gen-delims    = ":" / "/" / "?" / "#" / "[" / "]" / "@"
+    sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
+                  / "*" / "+" / "," / ";" / "="
 
-    Each of these characters is reserved in some component of a URL,
+    Each of the reserved characters is reserved in some component of a URL,
     but not necessarily in all of them.
 
-    By default, the quote function is intended for quoting the path
-    section of a URL.  Thus, it will not encode '/'.  This character
-    is reserved, but in typical usage the quote function is being
-    called on a path where the existing slash characters are used as
-    reserved characters.
+    The quote function %-escapes all characters that are neither in the
+    unreserved chars ("always safe") nor the additional chars set via the
+    safe arg.
 
-    string and safe may be either str or bytes objects. encoding must
-    not be specified if string is a str.
+    The default for the safe arg is '/'. The character is reserved, but in
+    typical usage the quote function is being called on a path where the
+    existing slash characters are to be preserved.
+
+    Python 3.7 updates from using RFC 2396 to RFC 3986 to quote URL strings.
+    Now, "~" is included in the set of unreserved characters.
+
+    string and safe may be either str or bytes objects. encoding and errors
+    must not be specified if string is a bytes object.
 
     The optional encoding and errors parameters specify how to deal with
     non-ASCII characters, as accepted by the str.encode method.
@@ -689,22 +849,22 @@ def quote(string, safe='/', encoding=None, errors=None):
             raise TypeError("quote() doesn't support 'errors' for bytes")
     return quote_from_bytes(string, safe)
 
-# def quote_plus(string, safe='', encoding=None, errors=None):
-#     """Like quote(), but also replace ' ' with '+', as required for quoting
-#     HTML form values. Plus signs in the original string are escaped unless
-#     they are included in safe. It also does not have safe default to '/'.
-#     """
-#     # Check if ' ' in string, where string may either be a str or bytes.  If
-#     # there are no spaces, the regular quote will produce the right answer.
-#     if ((isinstance(string, str) and ' ' not in string) or
-#         (isinstance(string, bytes) and b' ' not in string)):
-#         return quote(string, safe, encoding, errors)
-#     if isinstance(safe, str):
-#         space = ' '
-#     else:
-#         space = b' '
-#     string = quote(string, safe + space, encoding, errors)
-#     return string.replace(' ', '+')
+def quote_plus(string, safe='', encoding=None, errors=None):
+    """Like quote(), but also replace ' ' with '+', as required for quoting
+    HTML form values. Plus signs in the original string are escaped unless
+    they are included in safe. It also does not have safe default to '/'.
+    """
+    # Check if ' ' in string, where string may either be a str or bytes.  If
+    # there are no spaces, the regular quote will produce the right answer.
+    if ((isinstance(string, str) and ' ' not in string) or
+        (isinstance(string, bytes) and b' ' not in string)):
+        return quote(string, safe, encoding, errors)
+    if isinstance(safe, str):
+        space = ' '
+    else:
+        space = b' '
+    string = quote(string, safe + space, encoding, errors)
+    return string.replace(' ', '+')
 
 def quote_from_bytes(bs, safe='/'):
     """Like quote(), but accepts a bytes object rather than a str, and does
@@ -728,248 +888,289 @@ def quote_from_bytes(bs, safe='/'):
         _safe_quoters[safe] = quoter = Quoter(safe).__getitem__
     return ''.join([quoter(char) for char in bs])
 
-# def urlencode(query, doseq=False, safe='', encoding=None, errors=None):
-#     """Encode a dict or sequence of two-element tuples into a URL query string.
+def urlencode(query, doseq=False, safe='', encoding=None, errors=None,
+              quote_via=quote_plus):
+    """Encode a dict or sequence of two-element tuples into a URL query string.
 
-#     If any values in the query arg are sequences and doseq is true, each
-#     sequence element is converted to a separate parameter.
+    If any values in the query arg are sequences and doseq is true, each
+    sequence element is converted to a separate parameter.
 
-#     If the query arg is a sequence of two-element tuples, the order of the
-#     parameters in the output will match the order of parameters in the
-#     input.
+    If the query arg is a sequence of two-element tuples, the order of the
+    parameters in the output will match the order of parameters in the
+    input.
 
-#     The components of a query arg may each be either a string or a bytes type.
-#     When a component is a string, the safe, encoding and error parameters are
-#     sent to the quote_plus function for encoding.
-#     """
+    The components of a query arg may each be either a string or a bytes type.
 
-#     if hasattr(query, "items"):
-#         query = query.items()
-#     else:
-#         # It's a bother at times that strings and string-like objects are
-#         # sequences.
-#         try:
-#             # non-sequence items should not work with len()
-#             # non-empty strings will fail this
-#             if len(query) and not isinstance(query[0], tuple):
-#                 raise TypeError
-#             # Zero-length sequences of all types will get here and succeed,
-#             # but that's a minor nit.  Since the original implementation
-#             # allowed empty dicts that type of behavior probably should be
-#             # preserved for consistency
-#         except TypeError:
-# #            ty, va, tb = sys.exc_info()
-#             raise TypeError("not a valid non-string sequence "
-#                             "or mapping object")#.with_traceback(tb)
+    The safe, encoding, and errors parameters are passed down to the function
+    specified by quote_via (encoding and errors only if a component is a str).
+    """
 
-#     l = []
-#     if not doseq:
-#         for k, v in query:
-#             if isinstance(k, bytes):
-#                 k = quote_plus(k, safe)
-#             else:
-#                 k = quote_plus(str(k), safe, encoding, errors)
+    if hasattr(query, "items"):
+        query = query.items()
+    else:
+        # It's a bother at times that strings and string-like objects are
+        # sequences.
+        try:
+            # non-sequence items should not work with len()
+            # non-empty strings will fail this
+            if len(query) and not isinstance(query[0], tuple):
+                raise TypeError
+            # Zero-length sequences of all types will get here and succeed,
+            # but that's a minor nit.  Since the original implementation
+            # allowed empty dicts that type of behavior probably should be
+            # preserved for consistency
+        except TypeError:
+            ty, va, tb = sys.exc_info()
+            raise TypeError("not a valid non-string sequence "
+                            "or mapping object").with_traceback(tb)
 
-#             if isinstance(v, bytes):
-#                 v = quote_plus(v, safe)
-#             else:
-#                 v = quote_plus(str(v), safe, encoding, errors)
-#             l.append(k + '=' + v)
-#     else:
-#         for k, v in query:
-#             if isinstance(k, bytes):
-#                 k = quote_plus(k, safe)
-#             else:
-#                 k = quote_plus(str(k), safe, encoding, errors)
+    l = []
+    if not doseq:
+        for k, v in query:
+            if isinstance(k, bytes):
+                k = quote_via(k, safe)
+            else:
+                k = quote_via(str(k), safe, encoding, errors)
 
-#             if isinstance(v, bytes):
-#                 v = quote_plus(v, safe)
-#                 l.append(k + '=' + v)
-#             elif isinstance(v, str):
-#                 v = quote_plus(v, safe, encoding, errors)
-#                 l.append(k + '=' + v)
-#             else:
-#                 try:
-#                     # Is this a sufficient test for sequence-ness?
-#                     x = len(v)
-#                 except TypeError:
-#                     # not a sequence
-#                     v = quote_plus(str(v), safe, encoding, errors)
-#                     l.append(k + '=' + v)
-#                 else:
-#                     # loop over the sequence
-#                     for elt in v:
-#                         if isinstance(elt, bytes):
-#                             elt = quote_plus(elt, safe)
-#                         else:
-#                             elt = quote_plus(str(elt), safe, encoding, errors)
-#                         l.append(k + '=' + elt)
-#     return '&'.join(l)
+            if isinstance(v, bytes):
+                v = quote_via(v, safe)
+            else:
+                v = quote_via(str(v), safe, encoding, errors)
+            l.append(k + '=' + v)
+    else:
+        for k, v in query:
+            if isinstance(k, bytes):
+                k = quote_via(k, safe)
+            else:
+                k = quote_via(str(k), safe, encoding, errors)
 
-# # Utilities to parse URLs (most of these return None for missing parts):
-# # unwrap('<URL:type://host/path>') --> 'type://host/path'
-# # splittype('type:opaquestring') --> 'type', 'opaquestring'
-# # splithost('//host[:port]/path') --> 'host[:port]', '/path'
-# # splituser('user[:passwd]@host[:port]') --> 'user[:passwd]', 'host[:port]'
-# # splitpasswd('user:passwd') -> 'user', 'passwd'
-# # splitport('host:port') --> 'host', 'port'
-# # splitquery('/path?query') --> '/path', 'query'
-# # splittag('/path#tag') --> '/path', 'tag'
-# # splitattr('/path;attr1=value1;attr2=value2;...') ->
-# #   '/path', ['attr1=value1', 'attr2=value2', ...]
-# # splitvalue('attr=value') --> 'attr', 'value'
-# # urllib.parse.unquote('abc%20def') -> 'abc def'
-# # quote('abc def') -> 'abc%20def')
+            if isinstance(v, bytes):
+                v = quote_via(v, safe)
+                l.append(k + '=' + v)
+            elif isinstance(v, str):
+                v = quote_via(v, safe, encoding, errors)
+                l.append(k + '=' + v)
+            else:
+                try:
+                    # Is this a sufficient test for sequence-ness?
+                    x = len(v)
+                except TypeError:
+                    # not a sequence
+                    v = quote_via(str(v), safe, encoding, errors)
+                    l.append(k + '=' + v)
+                else:
+                    # loop over the sequence
+                    for elt in v:
+                        if isinstance(elt, bytes):
+                            elt = quote_via(elt, safe)
+                        else:
+                            elt = quote_via(str(elt), safe, encoding, errors)
+                        l.append(k + '=' + elt)
+    return '&'.join(l)
 
-# def to_bytes(url):
-#     """to_bytes(u"URL") --> 'URL'."""
-#     # Most URL schemes require ASCII. If that changes, the conversion
-#     # can be relaxed.
-#     # XXX get rid of to_bytes()
-#     if isinstance(url, str):
-#         try:
-#             url = url.encode("ASCII").decode()
-#         except UnicodeError:
-#             raise UnicodeError("URL " + repr(url) +
-#                                " contains non-ASCII characters")
-#     return url
 
-# def unwrap(url):
-#     """unwrap('<URL:type://host/path>') --> 'type://host/path'."""
-#     url = str(url).strip()
-#     if url[:1] == '<' and url[-1:] == '>':
-#         url = url[1:-1].strip()
-#     if url[:4] == 'URL:': url = url[4:].strip()
-#     return url
+def to_bytes(url):
+    warnings.warn("urllib.parse.to_bytes() is deprecated as of 3.8",
+                  DeprecationWarning, stacklevel=2)
+    return _to_bytes(url)
 
-# _typeprog = None
-# def splittype(url):
-#     """splittype('type:opaquestring') --> 'type', 'opaquestring'."""
-#     global _typeprog
-#     if _typeprog is None:
-#         import re
-#         _typeprog = re.compile('^([^/:]+):')
 
-#     match = _typeprog.match(url)
-#     if match:
-#         scheme = match.group(1)
-#         return scheme.lower(), url[len(scheme) + 1:]
-#     return None, url
+def _to_bytes(url):
+    """to_bytes(u"URL") --> 'URL'."""
+    # Most URL schemes require ASCII. If that changes, the conversion
+    # can be relaxed.
+    # XXX get rid of to_bytes()
+    if isinstance(url, str):
+        try:
+            url = url.encode("ASCII").decode()
+        except UnicodeError:
+            raise UnicodeError("URL " + repr(url) +
+                               " contains non-ASCII characters")
+    return url
 
-# _hostprog = None
-# def splithost(url):
-#     """splithost('//host[:port]/path') --> 'host[:port]', '/path'."""
-#     global _hostprog
-#     if _hostprog is None:
-#         import re
-#         _hostprog = re.compile('^//([^/?]*)(.*)$')
 
-#     match = _hostprog.match(url)
-#     if match:
-#         host_port = match.group(1)
-#         path = match.group(2)
-#         if path and not path.startswith('/'):
-#             path = '/' + path
-#         return host_port, path
-#     return None, url
+def unwrap(url):
+    """Transform a string like '<URL:scheme://host/path>' into 'scheme://host/path'.
 
-# _userprog = None
-# def splituser(host):
-#     """splituser('user[:passwd]@host[:port]') --> 'user[:passwd]', 'host[:port]'."""
-#     global _userprog
-#     if _userprog is None:
-#         import re
-#         _userprog = re.compile('^(.*)@(.*)$')
+    The string is returned unchanged if it's not a wrapped URL.
+    """
+    url = str(url).strip()
+    if url[:1] == '<' and url[-1:] == '>':
+        url = url[1:-1].strip()
+    if url[:4] == 'URL:':
+        url = url[4:].strip()
+    return url
 
-#     match = _userprog.match(host)
-#     if match: return match.group(1, 2)
-#     return None, host
 
-# _passwdprog = None
-# def splitpasswd(user):
-#     """splitpasswd('user:passwd') -> 'user', 'passwd'."""
-#     global _passwdprog
-#     if _passwdprog is None:
-#         import re
-#         _passwdprog = re.compile('^([^:]*):(.*)$',re.S)
+def splittype(url):
+    warnings.warn("urllib.parse.splittype() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splittype(url)
 
-#     match = _passwdprog.match(user)
-#     if match: return match.group(1, 2)
-#     return user, None
 
-# # splittag('/path#tag') --> '/path', 'tag'
-# _portprog = None
-# def splitport(host):
-#     """splitport('host:port') --> 'host', 'port'."""
-#     global _portprog
-#     if _portprog is None:
-#         import re
-#         _portprog = re.compile('^(.*):([0-9]+)$')
+_typeprog = None
+def _splittype(url):
+    """splittype('type:opaquestring') --> 'type', 'opaquestring'."""
+    global _typeprog
+    if _typeprog is None:
+        _typeprog = re.compile('([^/:]+):(.*)', re.DOTALL)
 
-#     match = _portprog.match(host)
-#     if match: return match.group(1, 2)
-#     return host, None
+    match = _typeprog.match(url)
+    if match:
+        scheme, data = match.groups()
+        return scheme.lower(), data
+    return None, url
 
-# _nportprog = None
-# def splitnport(host, defport=-1):
-#     """Split host and port, returning numeric port.
-#     Return given default port if no ':' found; defaults to -1.
-#     Return numerical port if a valid number are found after ':'.
-#     Return None if ':' but not a valid number."""
-#     global _nportprog
-#     if _nportprog is None:
-#         import re
-#         _nportprog = re.compile('^(.*):(.*)$')
 
-#     match = _nportprog.match(host)
-#     if match:
-#         host, port = match.group(1, 2)
-#         try:
-#             if not port: raise ValueError("no digits")
-#             nport = int(port)
-#         except ValueError:
-#             nport = None
-#         return host, nport
-#     return host, defport
+def splithost(url):
+    warnings.warn("urllib.parse.splithost() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splithost(url)
 
-# _queryprog = None
-# def splitquery(url):
-#     """splitquery('/path?query') --> '/path', 'query'."""
-#     global _queryprog
-#     if _queryprog is None:
-#         import re
-#         _queryprog = re.compile('^(.*)\?([^?]*)$')
 
-#     match = _queryprog.match(url)
-#     if match: return match.group(1, 2)
-#     return url, None
+_hostprog = None
+def _splithost(url):
+    """splithost('//host[:port]/path') --> 'host[:port]', '/path'."""
+    global _hostprog
+    if _hostprog is None:
+        _hostprog = re.compile('//([^/#?]*)(.*)', re.DOTALL)
 
-# _tagprog = None
-# def splittag(url):
-#     """splittag('/path#tag') --> '/path', 'tag'."""
-#     global _tagprog
-#     if _tagprog is None:
-#         import re
-#         _tagprog = re.compile('^(.*)#([^#]*)$')
+    match = _hostprog.match(url)
+    if match:
+        host_port, path = match.groups()
+        if path and path[0] != '/':
+            path = '/' + path
+        return host_port, path
+    return None, url
 
-#     match = _tagprog.match(url)
-#     if match: return match.group(1, 2)
-#     return url, None
 
-# def splitattr(url):
-#     """splitattr('/path;attr1=value1;attr2=value2;...') ->
-#         '/path', ['attr1=value1', 'attr2=value2', ...]."""
-#     words = url.split(';')
-#     return words[0], words[1:]
+def splituser(host):
+    warnings.warn("urllib.parse.splituser() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splituser(host)
 
-# _valueprog = None
-# def splitvalue(attr):
-#     """splitvalue('attr=value') --> 'attr', 'value'."""
-#     global _valueprog
-#     if _valueprog is None:
-#         import re
-#         _valueprog = re.compile('^([^=]*)=(.*)$')
 
-#     match = _valueprog.match(attr)
-#     if match: return match.group(1, 2)
-#     return attr, None
+def _splituser(host):
+    """splituser('user[:passwd]@host[:port]') --> 'user[:passwd]', 'host[:port]'."""
+    user, delim, host = host.rpartition('@')
+    return (user if delim else None), host
+
+
+def splitpasswd(user):
+    warnings.warn("urllib.parse.splitpasswd() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splitpasswd(user)
+
+
+def _splitpasswd(user):
+    """splitpasswd('user:passwd') -> 'user', 'passwd'."""
+    user, delim, passwd = user.partition(':')
+    return user, (passwd if delim else None)
+
+
+def splitport(host):
+    warnings.warn("urllib.parse.splitport() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splitport(host)
+
+
+# splittag('/path#tag') --> '/path', 'tag'
+_portprog = None
+def _splitport(host):
+    """splitport('host:port') --> 'host', 'port'."""
+    global _portprog
+    if _portprog is None:
+        _portprog = re.compile('(.*):([0-9]*)', re.DOTALL)
+
+    match = _portprog.fullmatch(host)
+    if match:
+        host, port = match.groups()
+        if port:
+            return host, port
+    return host, None
+
+
+def splitnport(host, defport=-1):
+    warnings.warn("urllib.parse.splitnport() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splitnport(host, defport)
+
+
+def _splitnport(host, defport=-1):
+    """Split host and port, returning numeric port.
+    Return given default port if no ':' found; defaults to -1.
+    Return numerical port if a valid number are found after ':'.
+    Return None if ':' but not a valid number."""
+    host, delim, port = host.rpartition(':')
+    if not delim:
+        host = port
+    elif port:
+        try:
+            nport = int(port)
+        except ValueError:
+            nport = None
+        return host, nport
+    return host, defport
+
+
+def splitquery(url):
+    warnings.warn("urllib.parse.splitquery() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splitquery(url)
+
+
+def _splitquery(url):
+    """splitquery('/path?query') --> '/path', 'query'."""
+    path, delim, query = url.rpartition('?')
+    if delim:
+        return path, query
+    return url, None
+
+
+def splittag(url):
+    warnings.warn("urllib.parse.splittag() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splittag(url)
+
+
+def _splittag(url):
+    """splittag('/path#tag') --> '/path', 'tag'."""
+    path, delim, tag = url.rpartition('#')
+    if delim:
+        return path, tag
+    return url, None
+
+
+def splitattr(url):
+    warnings.warn("urllib.parse.splitattr() is deprecated as of 3.8, "
+                  "use urllib.parse.urlparse() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splitattr(url)
+
+
+def _splitattr(url):
+    """splitattr('/path;attr1=value1;attr2=value2;...') ->
+        '/path', ['attr1=value1', 'attr2=value2', ...]."""
+    words = url.split(';')
+    return words[0], words[1:]
+
+
+def splitvalue(attr):
+    warnings.warn("urllib.parse.splitvalue() is deprecated as of 3.8, "
+                  "use urllib.parse.parse_qsl() instead",
+                  DeprecationWarning, stacklevel=2)
+    return _splitvalue(attr)
+
+
+def _splitvalue(attr):
+    """splitvalue('attr=value') --> 'attr', 'value'."""
+    attr, delim, value = attr.partition('=')
+    return attr, (value if delim else None)
