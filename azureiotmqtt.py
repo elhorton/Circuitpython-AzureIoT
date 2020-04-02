@@ -9,7 +9,7 @@ from constants import constants
 import time
 import circuitpython_base64 as base64
 import circuitpython_hmac as hmac
-import parse
+import circuitpython_parse as parse
 import json
 
 # -------------------- Class for handling message responses ---------------------------------------- #
@@ -94,14 +94,7 @@ def _quote(a, b):
 # Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
 def _tryCreateMQTTClient(__self, username, passwd, hostname):
     __self._mqtts = MQTT(
-        broker=hostname,
-        username=username,
-        password=passwd,
-        port=8883,
-        keep_alive=120,
-        is_ssl=True,
-        client_id=__self._deviceId,
-        log=True,
+        broker=hostname, username=username, password=passwd, port=8883, keep_alive=120, is_ssl=True, client_id=__self._deviceId, log=True,
     )
 
     __self._mqtts.logger.setLevel(logging.INFO)
@@ -150,7 +143,7 @@ def _request(device, target_url, method, body, headers):
 # -------------------- Class for the device itself ---------------------------------------- #
 class Device:
     def __init__(self, scopeId, keyORCert, deviceId, credType, socket):
-        self._logger = logger = logging.getLogger("Azure IoT")
+        self._logger = logging.getLogger("Azure IoT")
         self._mqtts = None
         self._loopInterval = 2
         self._mqttConnected = False
@@ -245,9 +238,7 @@ class Device:
         try:
             obj = json.loads(msg)
         except Exception as e:
-            self._logger.error(
-                "ERROR: JSON parse for SettingsUpdated message object has failed. => " + msg + " => " + str(e)
-            )
+            self._logger.error("ERROR: JSON parse for SettingsUpdated message object has failed. => " + msg + " => " + str(e))
             return
 
         version = None
@@ -451,9 +442,7 @@ class Device:
         self._logger.info(" - iotc :: _mqttconnect :: created mqtt client. connecting..")
         while self._auth_response_received == None:
             self.doNext()
-        self._logger.error(
-            " - iotc :: _mqttconnect :: on_connect must be fired. Connected ? " + str(self.isConnected())
-        )
+        self._logger.info(" - iotc :: _mqttconnect :: on_connect must be fired. Connected ? " + str(self.isConnected()))
         if not self.isConnected():
             return 1
         else:
@@ -492,9 +481,7 @@ class Device:
             sr = self._scopeId + "%2Fregistrations%2F" + self._deviceId
             sigNoEncode = self._computeDrivedSymmetricKey(self._keyORCert, sr + "\n" + str(expires))
             sigEncoded = _quote(sigNoEncode, "~()*!.'")
-            authString = (
-                "SharedAccessSignature sr=" + sr + "&sig=" + sigEncoded + "&se=" + str(expires) + "&skn=registration"
-            )
+            authString = "SharedAccessSignature sr=" + sr + "&sig=" + sigEncoded + "&se=" + str(expires) + "&skn=registration"
 
         headers = {
             "content-type": "application/json; charset=utf-8",

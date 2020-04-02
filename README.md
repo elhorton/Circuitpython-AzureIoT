@@ -86,6 +86,7 @@ Overall, there are two components to think about when working with CircuitPython
     | ------------------------ | ------ |
     | circuitpython_base64.mpy | File   |
     | circuitpython_hmac.mpy   | File   |
+    | circuitpython_parse.mpy  | File   |
 
 - Copy the code from this repo to the device.
 
