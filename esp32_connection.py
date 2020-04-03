@@ -1,16 +1,16 @@
 import board, busio
-import json, time
-from secrets import secrets
+import time
 from digitalio import DigitalInOut
 import adafruit_requests as requests
 import adafruit_minimqtt as MQTT
 import adafruit_esp32spi.adafruit_esp32spi_socket as socket
-from adafruit_esp32spi import adafruit_esp32spi, adafruit_esp32spi_wifimanager
+from adafruit_esp32spi import adafruit_esp32spi
 from adafruit_ntp import NTP
 
 
 class Connection:
-    def __connect(self, spi, cs, ready, reset, log):
+    def __connect(self, cs, ready, reset, ssid, password, log):
+        spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
         esp = adafruit_esp32spi.ESP_SPIcontrol(spi, cs, ready, reset)
 
         requests.set_socket(socket, esp)
@@ -22,7 +22,7 @@ class Connection:
 
         while not esp.is_connected:
             try:
-                esp.connect_AP(secrets["ssid"], secrets["password"])
+                esp.connect_AP(ssid, password)
             except RuntimeError as e:
                 if log:
                     print("could not connect to AP, retrying: ", e)
@@ -39,7 +39,7 @@ class Connection:
             time.sleep(1)
         print("Time:", time.time())
 
-    def connect(self, spi, log=False):
+    def connect(self, ssid, password, log=False):
         try:
             esp32_cs = DigitalInOut(board.ESP_CS)
             esp32_ready = DigitalInOut(board.ESP_BUSY)
@@ -49,4 +49,4 @@ class Connection:
             esp32_ready = DigitalInOut(board.D11)
             esp32_reset = DigitalInOut(board.D12)
 
-        self.__connect(spi, esp32_cs, esp32_ready, esp32_reset, log)
+        self.__connect(esp32_cs, esp32_ready, esp32_reset, ssid, password, log)
