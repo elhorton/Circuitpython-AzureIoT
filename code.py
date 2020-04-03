@@ -1,6 +1,6 @@
 import board, busio
 import adafruit_esp32spi.adafruit_esp32spi_socket as socket
-import esp32_connection as connection
+import circuitpython_esp32connection as connection
 from secrets import secrets
 from azureiotmqtt import (
     Device,
