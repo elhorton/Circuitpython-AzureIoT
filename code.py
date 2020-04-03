@@ -1,6 +1,6 @@
 import board, busio
 import adafruit_esp32spi.adafruit_esp32spi_socket as socket
-from esp32_connection import Connection
+import esp32_connection as connection
 from secrets import secrets
 from azureiotmqtt import (
     Device,
@@ -112,8 +112,7 @@ def showImage(imageFile):
 # -------------------------- Start Main Code -------------------------------- #
 
 # Set up wifi connection
-connection = Connection()
-connection.connect(secrets["ssid"], secrets["password"], True)
+connection.connect(secrets["ssid"], secrets["password"])
 
 
 # Get info for your specific device configuration
