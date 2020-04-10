@@ -385,3 +385,10 @@ class IoT_MQTT(Listener):
 
         self._send_common(topic, data)
         self._make_callback(IoT_MQTT.MESSAGE_SENT_EVENT_NAME, data, None, 0, None)
+
+    def send_twin_patch(self, data):
+        """Send a patch for the reported properties of the device twin
+        """
+        self._logger.info("- iotc :: sendProperty :: " + data)
+        topic = "$iothub/twin/PATCH/properties/reported/?$rid={}".format(int(time.time()))
+        return self._send_common(topic, data)

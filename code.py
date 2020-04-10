@@ -1,9 +1,10 @@
 from iothubdevice import IoTHubDevice
-import board, busio
+import board, busio, digitalio
 from esp32connection import Connection
 from secrets import secrets
 from iotcentraldevice import IoTCentralDevice
 from iot_mqtt import IOTCallbackInfo
+from gamepadshift import GamePadShift
 import time
 import json
 import random
@@ -145,12 +146,34 @@ my_device.on(IoTHubDevice.TWIN_DESIRED_PROPERTIES_UPDATED_EVENT_NAME, on_twin_up
 # my_device.on("Command", oncommand)  # write command handlers in the oncommand function
 # my_device.on("SettingsUpdated", onsettingsupdated)
 
+# Pybadge buttons
+BUTTON_A = 2
+pad = GamePadShift(
+    digitalio.DigitalInOut(board.BUTTON_CLOCK), digitalio.DigitalInOut(board.BUTTON_OUT), digitalio.DigitalInOut(board.BUTTON_LATCH)
+)
+
+
+def check_buttons(buttons):
+    if (buttons & BUTTON_A) > 0:
+        print("Button A pressed")
+        my_device.update_twin(json.dumps({"Foo": "Bar2"}))
+
+
+current_buttons = pad.get_pressed()
+last_read = 0
+
 my_device.connect()
 
 while my_device.is_connected():
     my_device.loop()  # do the async work needed to be done for MQTT
 
     # Do whatever
+    if (last_read + 0.1) < time.monotonic():
+        buttons = pad.get_pressed()
+        last_read = time.monotonic()
+    if current_buttons != buttons:
+        check_buttons(buttons)
+        current_buttons = buttons
 
     # sample of sending simulated telemetry
     temp = 32.0 + random.uniform(-20.0, 20.0)

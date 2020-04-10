@@ -11,6 +11,7 @@ class IoTCentralDevice:
     """A device client for the Azure IoT Central service
     """
 
+    # pylint: disable=R0913
     def __init__(
         self, wifi_manager: ESPSPI_WiFiManager, id_scope: str, device_id: str, key: str, token_expires: int = 21600, logger: logging = None
     ):
@@ -29,6 +30,7 @@ class IoTCentralDevice:
             IoT_MQTT.SETTING_UPDATED_EVENT_NAME: None,
         }
 
+    # pylint: disable=C0103
     def on(self, event_name: str, callback):
         """Subscribe to a named event, and when that event happens callback is called
 

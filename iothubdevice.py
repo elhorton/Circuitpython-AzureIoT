@@ -6,13 +6,13 @@ from listener import Listener
 import adafruit_logging as logging
 
 
-def _validate_keys(d):
+def _validate_keys(connection_string_parts):
     """Raise ValueError if incorrect combination of keys
     """
-    host_name = d.get(HOST_NAME)
-    shared_access_key_name = d.get(SHARED_ACCESS_KEY_NAME)
-    shared_access_key = d.get(SHARED_ACCESS_KEY)
-    device_id = d.get(DEVICE_ID)
+    host_name = connection_string_parts.get(HOST_NAME)
+    shared_access_key_name = connection_string_parts.get(SHARED_ACCESS_KEY_NAME)
+    shared_access_key = connection_string_parts.get(SHARED_ACCESS_KEY)
+    device_id = connection_string_parts.get(DEVICE_ID)
 
     if host_name and device_id and shared_access_key:
         pass
@@ -48,6 +48,7 @@ class IoTHubDevice(Listener):
     """A device client for the Azure IoT Hub service
     """
 
+    # pylint: disable=C0103
     DIRECT_METHOD_EVENT_NAME = "DirectMethod"
     TWIN_DESIRED_PROPERTIES_UPDATED_EVENT_NAME = "TwinDesiredPropertiesUpdated"
     CONNECTION_STATUS_EVENT_NAME = "ConnectionStatus"
@@ -157,4 +158,5 @@ class IoTHubDevice(Listener):
     def update_twin(self, patch):
         """Updates the reported properties in the devices device twin
         """
-        pass
+        if self._mqtt is not None:
+            self._mqtt.send_twin_patch(patch)
