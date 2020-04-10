@@ -3,4 +3,5 @@
 constants = {
     "dpsAPIVersion": "2018-11-01",
     "iotcAPIVersion": "2016-11-14",
+    "dpsEndPoint": "global.azure-devices-provisioning.net",
 }

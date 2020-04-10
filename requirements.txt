@@ -8,6 +8,7 @@ adafruit-circuitpython-ntp
 adafruit-circuitpython-requests
 circuitpython-base64
 circuitpython-hmac
+circuitpython-parse
 adafruit-circuitpython-neopixel-spi
 adafruit-circuitpython-neopixel
 adafruit-circuitpython-simpleio

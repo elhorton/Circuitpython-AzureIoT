@@ -1,11 +1,9 @@
+from iothubdevice import IoTHubDevice
 import board, busio
-import adafruit_esp32spi.adafruit_esp32spi_socket as socket
-import circuitpython_esp32connection as connection
+from esp32connection import Connection
 from secrets import secrets
-from azureiotmqtt import (
-    Device,
-    IOTConnectType,
-)
+from iotcentraldevice import IoTCentralDevice
+from iot_mqtt import IOTCallbackInfo
 import time
 import json
 import random
@@ -14,18 +12,18 @@ import neopixel
 # ------------------------------------ Listener functions ------------------------------------- #
 
 
-def onconnect(info):
-    print("Connection status: " + str(info.getStatusCode()))
+def on_connect(info: IOTCallbackInfo):
+    print("Connection status: " + str(info.get_status_code()))
 
 
-def onmessagesent(info):
-    print("Message sent: " + str(info.getPayload()))
+def onmessagesent(info: IOTCallbackInfo):
+    print("Message sent: " + str(info.get_payload()))
 
 
 # defining commands from an IoT Central application
-def oncommand(info):
-    print("Received command: " + info.getTag() + " => " + info.getPayload())
-    commandName = info.getTag()
+def oncommand(info: IOTCallbackInfo):
+    print("Received command: " + info.get_tag() + " => " + info.get_payload())
+    commandName = info.get_tag()
     if commandName == "SayHi":
         showText("Hi\nThere!")
     if commandName == "SendImage":
@@ -45,8 +43,8 @@ def oncommand(info):
     #     is_on = True
 
 
-def onsettingsupdated(info):
-    print("Updating settings: " + info.getTag() + " => " + info.getPayload())
+def onsettingsupdated(info: IOTCallbackInfo):
+    print("Updating settings: " + info.get_tag() + " => " + info.get_payload())
 
 
 # function for showing text on the PyPortal screen
@@ -112,30 +110,50 @@ def showImage(imageFile):
 # -------------------------- Start Main Code -------------------------------- #
 
 # Set up wifi connection
-connection.connect(secrets["ssid"], secrets["password"])
+connection = Connection()
+wifi_manager = connection.connect(secrets)
 
 
 # Get info for your specific device configuration
 id_scope = secrets["id_scope"]
 device_id = secrets["device_id"]
 primary_key = secrets["key"]
+device_connection_string = secrets["device_connection_string"]
 
 # create your ESP32 wifi enabled device, pass in connection & wifi setup
-my_device = Device(id_scope, primary_key, device_id, IOTConnectType.IOTC_CONNECT_SYMM_KEY, socket)
+# my_device = IoTCentralDevice(wifi_manager, id_scope, primary_key, device_id)
+my_device = IoTHubDevice(device_connection_string)
+
+
+def on_direct_method(info: IOTCallbackInfo):
+    print("Received direct method: " + info.get_tag() + " => " + info.get_payload())
+
+
+def on_cloud_to_device_message(info: IOTCallbackInfo):
+    print("Received cloud to device message: " + info.get_tag() + " => " + info.get_payload())
+
+
+def on_twin_updated(info: IOTCallbackInfo):
+    print("Received twin update message: " + info.get_tag() + " => " + info.get_payload())
+
+
+my_device.on(IoTHubDevice.DIRECT_METHOD_EVENT_NAME, on_direct_method)
+my_device.on(IoTHubDevice.CONNECTION_STATUS_EVENT_NAME, on_connect)
+my_device.on(IoTHubDevice.CLOUD_TO_DEVICE_MESSAGE_RECEIVED_EVENT_NAME, on_cloud_to_device_message)
+my_device.on(IoTHubDevice.TWIN_DESIRED_PROPERTIES_UPDATED_EVENT_NAME, on_twin_updated)
+# my_device.on("MessageSent", onmessagesent)
+# my_device.on("Command", oncommand)  # write command handlers in the oncommand function
+# my_device.on("SettingsUpdated", onsettingsupdated)
 
 my_device.connect()
 
-my_device.on("ConnectionStatus", onconnect)
-my_device.on("MessageSent", onmessagesent)
-my_device.on("Command", oncommand)  # write command handlers in the oncommand function
-my_device.on("SettingsUpdated", onsettingsupdated)
-
-while my_device.isConnected():
-    my_device.doNext()  # do the async work needed to be done for MQTT
+while my_device.is_connected():
+    my_device.loop()  # do the async work needed to be done for MQTT
 
     # Do whatever
 
     # sample of sending simulated telemetry
     temp = 32.0 + random.uniform(-20.0, 20.0)
     state = {"TestTelemetry": random.randint(0, 1024), "Temperature": temp}
-    my_device.sendState(json.dumps(state))
+    # my_device.send_device_to_cloud_message(json.dumps(state))
+    time.sleep(1)
