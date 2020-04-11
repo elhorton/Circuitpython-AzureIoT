@@ -1,8 +1,9 @@
 """Connectivity to Azure IoT Hub
 """
 
-from iot_mqtt import IoT_MQTT
-from listener import Listener
+import json
+from iot_error import IoTError
+from iot_mqtt import IoTMQTT, IoTMQTTCallback, IoTResponse
 import adafruit_logging as logging
 
 
@@ -44,19 +45,50 @@ VALID_KEYS = [
 ]
 
 
-class IoTHubDevice(Listener):
+class IoTHubDevice(IoTMQTTCallback):
     """A device client for the Azure IoT Hub service
     """
 
+    def connection_status_change(self, connected: bool) -> None:
+        """Called when the connection status changes
+        """
+        if self.on_connection_status_changed is not None:
+            # pylint: disable=E1102
+            self.on_connection_status_changed(connected)
+
+    # pylint: disable=W0613, R0201
+    def direct_method_called(self, method_name: str, data) -> IoTResponse:
+        """Called when a direct method is invoked
+        """
+        if self.on_direct_method_called is not None:
+            # pylint: disable=E1102
+            return self.on_direct_method_called(method_name, data)
+
+        raise IoTError("on_direct_method_called not set")
+
     # pylint: disable=C0103
-    DIRECT_METHOD_EVENT_NAME = "DirectMethod"
-    TWIN_DESIRED_PROPERTIES_UPDATED_EVENT_NAME = "TwinDesiredPropertiesUpdated"
-    CONNECTION_STATUS_EVENT_NAME = "ConnectionStatus"
-    CLOUD_TO_DEVICE_MESSAGE_RECEIVED_EVENT_NAME = "CloudToDeviceMessageReceived"
+    def cloud_to_device_message_received(self, body: str, properties: dict):
+        """Called when a cloud to device message is received
+        """
+        if self.on_cloud_to_device_message_received is not None:
+            # pylint: disable=E1102
+            self.on_cloud_to_device_message_received(body, properties)
+
+    def device_twin_desired_updated(self, desired_property_name: str, desired_property_value, desired_version: int) -> None:
+        """Called when the device twin is updated
+        """
+        if self.on_device_twin_desired_updated is not None:
+            # pylint: disable=E1102
+            self.on_device_twin_desired_updated(desired_property_name, desired_property_value, desired_version)
+
+    def device_twin_reported_updated(self, reported_property_name: str, reported_property_value, reported_version: int) -> None:
+        """Called when the device twin is updated
+        """
+        if self.on_device_twin_reported_updated is not None:
+            # pylint: disable=E1102
+            self.on_device_twin_reported_updated(reported_property_name, reported_property_value, reported_version)
 
     def __init__(self, device_connection_string: str, token_expires: int = 21600, logger: logging = None):
-        super(IoTHubDevice, self).__init__()
-        self._device_connection_string = device_connection_string
         self._token_expires = token_expires
         self._logger = logger if logger is not None else logging.getLogger("log")
 
@@ -81,22 +113,27 @@ class IoTHubDevice(Listener):
         self._logger.debug("Device Id: " + self._device_id)
         self._logger.debug("Shared Access Key: " + self._shared_access_key)
 
+        self.on_connection_status_changed = None
+        self.on_direct_method_called = None
+        self.on_cloud_to_device_message_received = None
+        self.on_device_twin_desired_updated = None
+        self.on_device_twin_reported_updated = None
+
         self._mqtt = None
 
     def connect(self):
         """Connects to Azure IoT Central
         """
-        self._mqtt = IoT_MQTT(self._hostname, self._device_id, self._shared_access_key, self._token_expires, self._logger)
-
-        self._wire_up_events()
-
+        self._mqtt = IoTMQTT(self, self._hostname, self._device_id, self._shared_access_key, self._token_expires, self._logger)
         self._mqtt.connect()
 
     def disconnect(self):
         """Disconnects from the MQTT broker
         """
-        if self._mqtt is not None:
-            self._mqtt.disconnect()
+        if self._mqtt is None:
+            raise IoTError("You are not connected to IoT Central")
+
+        self._mqtt.disconnect()
 
     def is_connected(self) -> bool:
         """Gets if there is an open connection to the MQTT broker
@@ -109,54 +146,26 @@ class IoTHubDevice(Listener):
     def loop(self):
         """Listens for MQTT messages
         """
-        if self._mqtt is not None:
-            self._mqtt.loop()
-
-    def _wire_up_events(self):
         if self._mqtt is None:
-            return
+            raise IoTError("You are not connected to IoT Central")
 
-        for event_name in self._events:
-            callback = self._events[event_name]
-            if event_name == IoTHubDevice.DIRECT_METHOD_EVENT_NAME:
-                self._mqtt.on(IoT_MQTT.DIRECT_METHOD_EVENT_NAME, callback)
-            elif event_name == IoTHubDevice.CONNECTION_STATUS_EVENT_NAME:
-                self._mqtt.on(IoT_MQTT.CONNECTION_STATUS_EVENT_NAME, callback)
-            elif event_name == IoTHubDevice.CLOUD_TO_DEVICE_MESSAGE_RECEIVED_EVENT_NAME:
-                self._mqtt.on(IoT_MQTT.CLOUD_TO_DEVICE_MESSAGE_RECEIVED_EVENT_NAME, callback)
-            elif event_name == IoTHubDevice.TWIN_DESIRED_PROPERTIES_UPDATED_EVENT_NAME:
-                self._mqtt.on(IoT_MQTT.TWIN_UPDATED_EVENT_NAME, callback)
-
-    def on(self, event_name, callback):
-        """Subscribe to a named event, and when that event happens callback is called
-
-        The available events are:
-
-        IoTHubDevice.DIRECT_METHOD_EVENT_NAME
-        IoTHubDevice.TWIN_DESIRED_PROPERTIES_UPDATED_EVENT_NAME
-        IoTHubDevice.CONNECTION_STATUS_EVENT_NAME
-        IoTHubDevice.CLOUD_TO_DEVICE_MESSAGE_RECEIVED_EVENT_NAME
-        """
-        if event_name not in [
-            IoTHubDevice.DIRECT_METHOD_EVENT_NAME,
-            IoTHubDevice.TWIN_DESIRED_PROPERTIES_UPDATED_EVENT_NAME,
-            IoTHubDevice.CONNECTION_STATUS_EVENT_NAME,
-            IoTHubDevice.CLOUD_TO_DEVICE_MESSAGE_RECEIVED_EVENT_NAME,
-        ]:
-            return
-
-        super(IoTHubDevice, self).on(event_name, callback)
-
-        self._wire_up_events()
+        self._mqtt.loop()
 
     def send_device_to_cloud_message(self, message, system_properties=None):
         """Sends a device to cloud message to the IoT Hub
         """
-        if self._mqtt is not None:
-            self._mqtt.send_device_to_cloud_message(message, system_properties)
+        if self._mqtt is None:
+            raise IoTError("You are not connected to IoT Central")
+
+        self._mqtt.send_device_to_cloud_message(message, system_properties)
 
     def update_twin(self, patch):
         """Updates the reported properties in the devices device twin
         """
-        if self._mqtt is not None:
-            self._mqtt.send_twin_patch(patch)
+        if self._mqtt is None:
+            raise IoTError("You are not connected to IoT Central")
+
+        if isinstance(patch, dict):
+            patch = json.dumps(patch)
+
+        self._mqtt.send_twin_patch(patch)

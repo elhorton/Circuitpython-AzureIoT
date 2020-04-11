@@ -1,4 +1,7 @@
-# This file is for maintaining constants that could be changed or added to over time for different scenarios
+"""This file is for maintaining constants that could be changed or added to over time for different scenarios
+"""
+
+# pylint: disable=C0103
 
 constants = {
     "dpsAPIVersion": "2018-11-01",

@@ -6,6 +6,8 @@ Handles registration of IoT Central devices, and gets the hostname to use when c
 to IoT Central over MQTT
 """
 
+import gc
+import json
 import time
 import circuitpython_base64 as base64
 import circuitpython_hmac as hmac
@@ -86,7 +88,7 @@ class DeviceRegistration:
         self._logger.info("- iotc :: _loop_assign :: " + uri)
         target = parse.urlparse(uri)
 
-        response = self._wifi_manager.get(target.geturl(), headers=headers)
+        response = self.__run_get_request_with_retry(target.geturl(), headers)
 
         try:
             data = response.json()
@@ -117,6 +119,56 @@ class DeviceRegistration:
         err = "DPS L => " + str(data)
         self._logger.error(err)
         raise DeviceRegistrationError(err)
+
+    def __run_put_request_with_retry(self, url, body, headers):
+        retry = 0
+        response = None
+
+        while True:
+            gc.collect()
+            try:
+                self._logger.debug("Trying to send...")
+                response = self._wifi_manager.put(url, json=body, headers=headers)
+                self._logger.debug("Sent!")
+                break
+            except RuntimeError as runtime_error:
+                self._logger.info("Could not send data, retrying after 0.5 seconds: " + str(runtime_error))
+                retry = retry + 1
+
+                if retry >= 10:
+                    self._logger.error("Failed to send data")
+                    raise
+
+                time.sleep(0.5)
+                continue
+
+        gc.collect()
+        return response
+
+    def __run_get_request_with_retry(self, url, headers):
+        retry = 0
+        response = None
+
+        while True:
+            gc.collect()
+            try:
+                self._logger.debug("Trying to send...")
+                response = self._wifi_manager.get(url, headers=headers)
+                self._logger.debug("Sent!")
+                break
+            except RuntimeError as runtime_error:
+                self._logger.info("Could not send data, retrying after 0.5 seconds: " + str(runtime_error))
+                retry = retry + 1
+
+                if retry >= 10:
+                    self._logger.error("Failed to send data")
+                    raise
+
+                time.sleep(0.5)
+                continue
+
+        gc.collect()
+        return response
 
     def register_device(self, expiry: int) -> str:
         """
@@ -150,8 +202,11 @@ class DeviceRegistration:
         target = parse.urlparse(uri)
 
         self._logger.info("Connecting...")
+        self._logger.info("URL: " + target.geturl())
+        self._logger.info("body: " + json.dumps(body))
+        print("headers: " + json.dumps(headers))
 
-        response = self._wifi_manager.put(target.geturl(), json=body, headers=headers)
+        response = self.__run_put_request_with_retry(target.geturl(), body, headers)
 
         data = None
         try:
