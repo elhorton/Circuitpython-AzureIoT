@@ -15,7 +15,7 @@ WIFI_MANAGER = CONNECTION.connect(secrets)
 TEST_IOT_CENTRAL = "TestIoTCentral"
 TEST_IOT_HUB = "TestIoTHub"
 
-TO_TEST = TEST_IOT_CENTRAL
+TO_TEST = TEST_IOT_HUB
 
 # Pybadge buttons
 BUTTON_A = 2
@@ -81,7 +81,7 @@ if TO_TEST == TEST_IOT_HUB:
         # sample of sending simulated telemetry
         temp = 32.0 + random.uniform(-20.0, 20.0)
         state = {"TestTelemetry": random.randint(0, 1024), "Temperature": temp}
-        # MY_DEVICE.send_device_to_cloud_message(json.dumps(state))
+        MY_DEVICE.send_device_to_cloud_message(json.dumps(state))
         time.sleep(1)
 
 elif TO_TEST == TEST_IOT_CENTRAL:
@@ -192,5 +192,5 @@ elif TO_TEST == TEST_IOT_CENTRAL:
         # sample of sending simulated telemetry
         temp = 32.0 + random.uniform(-20.0, 20.0)
         state = {"TestTelemetry": random.randint(0, 1024), "Temperature": temp}
-        # MY_DEVICE.send_telemetry(state)
+        MY_DEVICE.send_telemetry(state)
         time.sleep(1)
