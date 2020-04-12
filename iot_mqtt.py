@@ -4,6 +4,9 @@
 import gc
 import json
 import time
+import adafruit_esp32spi.adafruit_esp32spi_socket as socket
+from adafruit_esp32spi.adafruit_esp32spi_wifimanager import ESPSPI_WiFiManager
+import adafruit_minimqtt as minimqtt
 from adafruit_minimqtt import MQTT
 import circuitpython_parse as parse
 from constants import constants
@@ -85,6 +88,8 @@ class IoTMQTT:
 
     # Workaround for https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/25
     def _try_create_mqtt_client(self, hostname):
+        minimqtt.set_socket(socket, self._wifi_manager.esp)
+
         self._mqtts = MQTT(
             broker=hostname,
             username=self._username,
@@ -298,9 +303,10 @@ class IoTMQTT:
 
     # pylint: disable=R0913
     def __init__(
-        self, callback: IoTMQTTCallback, hostname: str, device_id: str, key: str, token_expires: int = 21600, logger: logging = None
+        self, callback: IoTMQTTCallback, wifi_manager: ESPSPI_WiFiManager, hostname: str, device_id: str, key: str, token_expires: int = 21600, logger: logging = None
     ):
         """Create the Azure IoT MQTT client
+        :param wifi_manager: The WiFi manager
         :param IoTMQTTCallback callback: A callback class
         :param str hostname: The hostname of the MQTT broker to connect to, get this by registering the device
         :param str device_id: The device ID of the device to register
@@ -308,6 +314,7 @@ class IoTMQTT:
         :param int token_expires: The number of seconds till the token expires, defaults to 6 hours
         :param adafruit_logging logger: The logger
         """
+        self._wifi_manager = wifi_manager
         self._callback = callback
         self._mqtt_connected = False
         self._auth_response_received = False

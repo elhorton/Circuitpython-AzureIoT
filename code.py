@@ -34,7 +34,7 @@ if TO_TEST == TEST_IOT_HUB:
 
     DEVICE_CONNECTION_STRING = secrets["device_connection_string"]
 
-    MY_DEVICE = IoTHubDevice(DEVICE_CONNECTION_STRING)
+    MY_DEVICE = IoTHubDevice(WIFI_MANAGER, DEVICE_CONNECTION_STRING)
 
     def direct_method_called(method_name, data) -> IoTResponse:
         print("Received direct method: " + method_name + " => " + str(data))

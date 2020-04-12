@@ -66,7 +66,7 @@ def __connect(cs_pin, ready_pin, reset_pin, secrets) -> ESPSPI_WiFiManager:
 
     wifi = ESPSPI_WiFiManager(esp, secrets, attempts=5)
 
-    MQTT.set_socket(socket, esp)
+    # MQTT.set_socket(socket, esp)
 
     logger.debug("MAC addr: " + ", ".join([hex(i) for i in esp.MAC_address]))
     logger.debug("Connecting to AP...")

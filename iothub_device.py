@@ -4,6 +4,7 @@
 import json
 from iot_error import IoTError
 from iot_mqtt import IoTMQTT, IoTMQTTCallback, IoTResponse
+from adafruit_esp32spi.adafruit_esp32spi_wifimanager import ESPSPI_WiFiManager
 import adafruit_logging as logging
 
 
@@ -88,9 +89,10 @@ class IoTHubDevice(IoTMQTTCallback):
             # pylint: disable=E1102
             self.on_device_twin_reported_updated(reported_property_name, reported_property_value, reported_version)
 
-    def __init__(self, device_connection_string: str, token_expires: int = 21600, logger: logging = None):
+    def __init__(self, wifi_manager: ESPSPI_WiFiManager, device_connection_string: str, token_expires: int = 21600, logger: logging = None):
         self._token_expires = token_expires
         self._logger = logger if logger is not None else logging.getLogger("log")
+        self._wifi_manager = wifi_manager
 
         connection_string_values = {}
 
@@ -124,7 +126,7 @@ class IoTHubDevice(IoTMQTTCallback):
     def connect(self):
         """Connects to Azure IoT Central
         """
-        self._mqtt = IoTMQTT(self, self._hostname, self._device_id, self._shared_access_key, self._token_expires, self._logger)
+        self._mqtt = IoTMQTT(self, self._wifi_manager, self._hostname, self._device_id, self._shared_access_key, self._token_expires, self._logger)
         self._mqtt.connect()
 
     def disconnect(self):
